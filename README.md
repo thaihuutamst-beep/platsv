@@ -14,13 +14,22 @@ A modern web-based media server for managing and playing videos/photos with MPV 
 ## 🚀 Quick Start
 
 ```bash
-# Install dependencies
+# 1. Clone repo
+git clone https://github.com/thaihuutamst-beep/platsv.git
+cd platsv
+
+# 2. Install dependencies
 npm install
 
-# Run development server
-npm run dev
+# 3. Download MPV (required for remote control)
+# Download from: https://mpv.io/installation/
+# Extract to: ./mpv/ folder
 
-# Open browser
+# 4. Run server
+npm run dev
+# Or double-click START.bat
+
+# 5. Open browser
 http://localhost:3000
 ```
 
