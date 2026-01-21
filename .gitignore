@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Data & Media (user content)
+data/
+library/
+
+# MPV binaries (too large for GitHub - users install separately)
+mpv/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+
+# Temp files
+*.tmp
+*.temp

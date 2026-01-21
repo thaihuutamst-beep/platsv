@@ -1,0 +1,19 @@
+{
+  "name": "dram-playsv",
+  "version": "5.0.0",
+  "description": "DRAM Media Server Ultimate",
+  "main": "server/v2/index.js",
+  "scripts": {
+    "start": "node server/v2/index.js",
+    "dev": "node server/v2/index.js",
+    "test:env": "node scripts/test-env.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "fluent-ffmpeg": "^2.1.2",
+    "socket.io": "^4.7.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.6"
+  }
+}

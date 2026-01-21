@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="manifest" href="manifest.json">
+    <title>DRAM PLAYSV V5</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="brand"><i class="fa-solid fa-server"></i> DRAM SERVER</div>
+            <nav class="nav-menu">
+                <div class="nav-group">
+                    <h3>THƯ VIỆN</h3>
+                    <button class="nav-item active" data-view="videos" onclick="app.switchView('videos')"><i
+                            class="fa-solid fa-layer-group"></i>
+                        Tất cả Video</button>
+                    <button class="nav-item" data-view="photos" onclick="app.switchView('photos')"><i
+                            class="fa-solid fa-image"></i>
+                        Ảnh</button>
+                    <button class="nav-item" onclick="app.openRemote()"><i class="fa-solid fa-gamepad"></i> Điều khiển
+                        PC</button>
+                </div>
+                <div class="nav-group">
+                    <h3>HỆ THỐNG</h3>
+                    <button id="btn-scan" class="nav-item"><i class="fa-solid fa-radar"></i> Quét Video</button>
+                    <button class="nav-item" onclick="app.openSettings()"><i class="fa-solid fa-gear"></i> Cài
+                        đặt</button>
+                    <div id="scan-status" style="font-size:0.8rem; color:#666; padding:10px; text-align:center;">Sẵn
+                        sàng</div>
+                    <div style="text-align:center; margin-top:15px;">
+                        <canvas id="qr-code"></canvas>
+                        <p id="network-url" style="font-size:0.7rem; color:#666;">...</p>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <div class="toolbar-wrapper">
+                <div class="search-row">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="search-input" placeholder="Tìm kiếm phim (gõ không dấu cũng được)...">
+                    </div>
+                </div>
+
+                <div class="filter-row">
+                    <select id="sort-select">
+                        <option value="date-desc">🕒 Mới nhất</option>
+                        <option value="date-asc">🕒 Cũ nhất</option>
+                        <option value="name-asc">🔤 Tên A-Z</option>
+                        <option value="name-desc">🔤 Tên Z-A</option>
+                        <option value="size-desc">💾 Nặng nhất</option>
+                        <option value="dur-desc">⏳ Dài nhất</option>
+                    </select>
+
+                    <!-- Quick Filter Chips -->
+                    <div class="filter-chips">
+                        <button class="filter-chip active" data-filter="all" onclick="app.filterByType('all')">Tất
+                            cả</button>
+                        <button class="filter-chip" data-filter="video" onclick="app.filterByType('video')"><i
+                                class="fa-solid fa-film"></i></button>
+                        <button class="filter-chip" data-filter="photo" onclick="app.filterByType('photo')"><i
+                                class="fa-solid fa-image"></i></button>
+                        <span class="chip-divider">|</span>
+                        <button class="filter-chip" data-filter="portrait"
+                            onclick="app.filterByOrientation('portrait')"><i
+                                class="fa-solid fa-mobile-screen"></i></button>
+                        <button class="filter-chip" data-filter="landscape"
+                            onclick="app.filterByOrientation('landscape')"><i class="fa-solid fa-desktop"></i></button>
+                        <span class="chip-divider">|</span>
+                        <button class="filter-chip" data-filter="local" onclick="app.filterBySource('local')"><i
+                                class="fa-solid fa-hard-drive"></i></button>
+                        <button class="filter-chip" data-filter="cloud" onclick="app.filterBySource('cloud')"><i
+                                class="fa-solid fa-cloud"></i></button>
+                    </div>
+
+                    <button class="btn-tool" onclick="app.selectAll()">Chọn hết</button>
+                    <button class="btn-tool" onclick="app.clearSelect()">Bỏ chọn</button>
+                </div>
+            </div>
+
+            <div class="content-scroll-area">
+                <div id="continue-section" class="section hidden">
+                    <h3 class="section-title">Xem tiếp</h3>
+                    <div id="continue-grid" class="horizontal-scroll"></div>
+                </div>
+                <div id="video-grid" class="video-grid"></div>
+                <div id="photo-grid" class="video-grid hidden"></div>
+
+                <!-- Photo Viewer Overlay -->
+                <div id="photo-viewer" class="photo-viewer hidden">
+                    <div class="viewer-content">
+                        <img id="viewer-img" src="" alt="Photo Viewer">
+                    </div>
+
+                    <div class="viewer-top-bar">
+                        <div class="viewer-info">
+                            <span id="viewer-filename">filename.jpg</span>
+                            <span id="viewer-date">2024-01-01</span>
+                        </div>
+                        <button class="btn-icon" id="viewer-close"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <div class="viewer-controls">
+                        <button class="btn-control" id="viewer-prev" title="Previous"><i
+                                class="fa-solid fa-chevron-left"></i></button>
+
+                        <button class="btn-control" id="viewer-zoom-out" title="Zoom Out"><i
+                                class="fa-solid fa-minus"></i></button>
+                        <button class="btn-control" id="viewer-zoom-in" title="Zoom In"><i
+                                class="fa-solid fa-plus"></i></button>
+                        <button class="btn-control" id="viewer-rotate" title="Rotate"><i
+                                class="fa-solid fa-rotate-right"></i></button>
+
+                        <button class="btn-control" id="viewer-play" title="Slideshow"><i
+                                class="fa-solid fa-play"></i></button>
+                        <button class="btn-control" id="viewer-next" title="Next"><i
+                                class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="export-bar" class="export-bar hidden">
+                <div class="export-info">Đã chọn: <strong id="bar-count">0</strong></div>
+                <div class="export-actions">
+                    <button class="btn-export secondary" onclick="app.addToQueue()">➕ Queue</button>
+                    <button class="btn-export primary" onclick="app.exportM3U('selected')">M3U</button>
+                </div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav mobile-only">
+            <button class="nav-btn active" onclick="app.switchView('videos')"><i
+                    class="fa-solid fa-film"></i><span>Phim</span></button>
+            <button class="nav-btn" onclick="app.switchView('photos')"><i
+                    class="fa-solid fa-image"></i><span>Ảnh</span></button>
+            <button class="nav-btn" onclick="app.openRemote()"><i
+                    class="fa-solid fa-gamepad"></i><span>Remote</span></button>
+            <button class="nav-btn" onclick="app.openSettings()"><i class="fa-solid fa-gear"></i><span>Cài
+                    đặt</span></button>
+        </nav>
+
+        <div id="video-player-overlay" class="player-overlay hidden">
+            <div class="player-header hidden">
+                <h3 id="player-title">Player</h3>
+            </div>
+            <div class="video-wrapper">
+                <video id="main-video" playsinline></video>
+            </div>
+            <!-- Advanced controls will be injected by player.js -->
+        </div>
+
+        <div id="floating-player" class="floating-player hidden" onclick="app.openRemote()">
+            <div class="fp-info">
+                <span id="fp-status">Đang phát</span>
+                <span id="fp-title">Tên bài hát...</span>
+            </div>
+            <div class="fp-controls">
+                <button onclick="event.stopPropagation(); app.remoteControl('play_pause')"><i
+                        class="fa-solid fa-play"></i></button>
+                <button onclick="event.stopPropagation(); app.remoteControl('next')"><i
+                        class="fa-solid fa-forward-step"></i></button>
+            </div>
+        </div>
+
+        <div id="remote-overlay" class="player-overlay hidden" style="background: rgba(0,0,0,0.95);">
+            <div class="player-header">
+                <h3><i class="fa-solid fa-tower-broadcast"></i> PC REMOTE</h3>
+                <!-- Top close button kept for desktop, but mobile users will use bottom one -->
+                <button onclick="app.closeRemote()" class="btn-close mobile-hidden"><i
+                        class="fa-solid fa-chevron-down"></i></button>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; padding: 20px; overflow:hidden;">
+                <div style="text-align:center; margin-bottom:20px;">
+                    <div id="remote-status" style="color:var(--primary); font-size:0.9rem; margin-bottom:5px;">ĐANG PHÁT
+                    </div>
+                    <h2 id="remote-title" style="font-size:1.2rem; line-height:1.4; color:white;">Loading...</h2>
+                </div>
+                <div class="remote-controls"
+                    style="display:flex; justify-content:center; gap:25px; margin-bottom:30px;">
+                    <button onclick="app.remoteControl('prev')" class="btn-remote-big"><i
+                            class="fa-solid fa-backward-step"></i></button>
+                    <button onclick="app.remoteControl('play_pause')" class="btn-remote-big"><i
+                            class="fa-solid fa-play"></i></button>
+                    <button onclick="app.remoteControl('next')" class="btn-remote-big"><i
+                            class="fa-solid fa-forward-step"></i></button>
+                    <button onclick="app.remoteControl('stop')" class="btn-remote-big" style="color:#ef4444"><i
+                            class="fa-solid fa-power-off"></i></button>
+                </div>
+
+                <!-- Send to PC Section -->
+                <div class="send-to-pc-section" style="margin-bottom:20px;">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                        <span style="color:#888; font-size:0.85rem;">📤 Gửi nội dung lên PC:</span>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <select id="send-content-select"
+                            style="flex:1; min-width:150px; padding:10px; background:#1e1e2e; border:1px solid #333; border-radius:8px; color:white; font-size:0.9rem;">
+                            <option value="">Chọn video...</option>
+                        </select>
+                        <button onclick="app.sendSelectedToPC()" class="btn-action primary" style="padding:10px 16px;">
+                            <i class="fa-solid fa-paper-plane"></i> Phát
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Toggle -->
+                <div style="text-align:center; margin-bottom:15px;">
+                    <button onclick="app.toggleAdvancedRemote()"
+                        style="background:none; border:1px solid #555; color:#ccc; padding:8px 16px; border-radius:20px; font-size:0.85rem;">
+                        <i class="fa-solid fa-sliders"></i> Nâng cao
+                    </button>
+                </div>
+
+                <!-- Advanced Controls Panel - Modern UI -->
+                <div id="remote-advanced" class="hidden advanced-panel">
+                    <!-- Track Controls Row -->
+                    <div class="control-row">
+                        <button class="ctrl-pill" onclick="app.cycleSub()">
+                            <i class="fa-regular fa-closed-captioning"></i> Sub
+                        </button>
+                        <button class="ctrl-pill" onclick="app.cycleAudio()">
+                            <i class="fa-solid fa-music"></i> Audio
+                        </button>
+                    </div>
+
+                    <!-- Speed Slider with Presets -->
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <label>Tốc độ</label>
+                            <span class="slider-value" id="speed-value">1.0x</span>
+                            <button class="btn-reset"
+                                onclick="app.setSpeed(1.0); document.getElementById('speed-slider-mpv').value=1;">
+                                <i class="fa-solid fa-undo"></i>
+                            </button>
+                        </div>
+                        <input type="range" id="speed-slider-mpv" class="styled-slider" min="0.25" max="4" step="0.05"
+                            value="1"
+                            oninput="app.setSpeed(this.value); document.getElementById('speed-value').textContent=parseFloat(this.value).toFixed(2)+'x';">
+                        <div class="slider-marks">
+                            <span
+                                onclick="app.setSpeed(0.5); document.getElementById('speed-slider-mpv').value=0.5; document.getElementById('speed-value').textContent='0.50x';">0.5</span>
+                            <span
+                                onclick="app.setSpeed(1.0); document.getElementById('speed-slider-mpv').value=1; document.getElementById('speed-value').textContent='1.00x';">1.0</span>
+                            <span
+                                onclick="app.setSpeed(1.5); document.getElementById('speed-slider-mpv').value=1.5; document.getElementById('speed-value').textContent='1.50x';">1.5</span>
+                            <span
+                                onclick="app.setSpeed(2.0); document.getElementById('speed-slider-mpv').value=2; document.getElementById('speed-value').textContent='2.00x';">2.0</span>
+                            <span
+                                onclick="app.setSpeed(4.0); document.getElementById('speed-slider-mpv').value=4; document.getElementById('speed-value').textContent='4.00x';">4.0</span>
+                        </div>
+                    </div>
+
+                    <!-- Aspect Ratio Chips -->
+                    <div class="chip-group">
+                        <label>Tỷ lệ</label>
+                        <div class="chips">
+                            <button class="chip active"
+                                onclick="app.setAspect('-1'); this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">Auto</button>
+                            <button class="chip"
+                                onclick="app.setAspect('16:9'); this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">16:9</button>
+                            <button class="chip"
+                                onclick="app.setAspect('21:9'); this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">21:9</button>
+                            <button class="chip"
+                                onclick="app.setAspect('4:3'); this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">4:3</button>
+                            <button class="chip"
+                                onclick="app.setAspect('1:1'); this.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">1:1</button>
+                        </div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="divider"></div>
+
+                    <!-- Zoom Slider -->
+                    <div class="slider-group">
+                        <div class="slider-header">
+                            <label><i class="fa-solid fa-magnifying-glass-plus"></i> Zoom</label>
+                            <span class="slider-value" id="zoom-value-mpv">0</span>
+                            <button class="btn-reset"
+                                onclick="app.remoteControl('zoom', 0); document.getElementById('zoom-slider-mpv').value=0; document.getElementById('zoom-value-mpv').textContent='0';">
+                                <i class="fa-solid fa-undo"></i>
+                            </button>
+                        </div>
+                        <input type="range" id="zoom-slider-mpv" class="styled-slider" min="-1" max="2" step="0.1"
+                            value="0"
+                            oninput="app.remoteControl('zoom', this.value); document.getElementById('zoom-value-mpv').textContent=parseFloat(this.value).toFixed(1);">
+                        <div class="slider-marks">
+                            <span
+                                onclick="document.getElementById('zoom-slider-mpv').value=-1; app.remoteControl('zoom', -1); document.getElementById('zoom-value-mpv').textContent='-1.0';">-1</span>
+                            <span
+                                onclick="document.getElementById('zoom-slider-mpv').value=0; app.remoteControl('zoom', 0); document.getElementById('zoom-value-mpv').textContent='0';">0</span>
+                            <span
+                                onclick="document.getElementById('zoom-slider-mpv').value=1; app.remoteControl('zoom', 1); document.getElementById('zoom-value-mpv').textContent='1.0';">1</span>
+                            <span
+                                onclick="document.getElementById('zoom-slider-mpv').value=2; app.remoteControl('zoom', 2); document.getElementById('zoom-value-mpv').textContent='2.0';">2</span>
+                        </div>
+                    </div>
+
+                    <!-- Pan X/Y Dual Slider -->
+                    <div class="dual-slider">
+                        <div class="slider-group compact">
+                            <div class="slider-header">
+                                <label>Pan X</label>
+                                <span class="slider-value" id="pan-x-value">0</span>
+                            </div>
+                            <input type="range" id="pan-x-slider-mpv" class="styled-slider" min="-0.5" max="0.5"
+                                step="0.02" value="0"
+                                oninput="app.remoteControl('pan_x', this.value); document.getElementById('pan-x-value').textContent=parseFloat(this.value).toFixed(2);">
+                        </div>
+                        <div class="slider-group compact">
+                            <div class="slider-header">
+                                <label>Pan Y</label>
+                                <span class="slider-value" id="pan-y-value">0</span>
+                            </div>
+                            <input type="range" id="pan-y-slider-mpv" class="styled-slider" min="-0.5" max="0.5"
+                                step="0.02" value="0"
+                                oninput="app.remoteControl('pan_y', this.value); document.getElementById('pan-y-value').textContent=parseFloat(this.value).toFixed(2);">
+                        </div>
+                    </div>
+
+                    <!-- Rotate Dial -->
+                    <div class="dial-group">
+                        <label><i class="fa-solid fa-rotate-right"></i> Xoay</label>
+                        <div class="dial-buttons">
+                            <button class="dial-btn active" data-rotate="0"
+                                onclick="app.remoteControl('rotate', 0); document.querySelectorAll('.dial-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+                                <i class="fa-solid fa-arrow-up"></i><span>0°</span>
+                            </button>
+                            <button class="dial-btn" data-rotate="90"
+                                onclick="app.remoteControl('rotate', 90); document.querySelectorAll('.dial-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+                                <i class="fa-solid fa-arrow-right"></i><span>90°</span>
+                            </button>
+                            <button class="dial-btn" data-rotate="180"
+                                onclick="app.remoteControl('rotate', 180); document.querySelectorAll('.dial-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+                                <i class="fa-solid fa-arrow-down"></i><span>180°</span>
+                            </button>
+                            <button class="dial-btn" data-rotate="270"
+                                onclick="app.remoteControl('rotate', 270); document.querySelectorAll('.dial-btn').forEach(b=>b.classList.remove('active')); this.classList.add('active');">
+                                <i class="fa-solid fa-arrow-left"></i><span>270°</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Reset All Button -->
+                    <button class="btn-reset-all"
+                        onclick="app.remoteControl('reset_view'); document.getElementById('zoom-slider-mpv').value=0; document.getElementById('pan-x-slider-mpv').value=0; document.getElementById('pan-y-slider-mpv').value=0; document.getElementById('zoom-value-mpv').textContent='0'; document.getElementById('pan-x-value').textContent='0'; document.getElementById('pan-y-value').textContent='0'; document.querySelectorAll('.dial-btn').forEach(b=>b.classList.remove('active')); document.querySelector('.dial-btn[data-rotate=\"
+                        0\"]').classList.add('active');">
+                        <i class="fa-solid fa-rotate-left"></i> Reset All
+                    </button>
+                </div>
+                <h3
+                    style="font-size:0.9rem; color:#666; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px;">
+                    HÀNG ĐỢI (<span id="queue-count">0</span>)</h3>
+                <div id="queue-list" style="flex:1; overflow-y:auto; font-size:0.9rem;"></div>
+            </div>
+
+            <!-- Bottom Close Button (Thumb Friendly) -->
+            <div class="remote-bottom-bar">
+                <button class="btn-close-large" onclick="app.closeRemote()">
+                    <i class="fa-solid fa-chevron-down"></i> Đóng
+                </button>
+            </div>
+        </div>
+        <!-- SETTINGS OVERLAY -->
+        <div id="settings-overlay" class="settings-overlay hidden">
+            <div class="settings-modal">
+                <div class="settings-header">
+                    <h2><i class="fa-solid fa-gear"></i> Cài đặt</h2>
+                    <button class="btn-close" onclick="app.closeSettings()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+
+                <div class="settings-body">
+                    <!-- Stats Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-chart-simple"></i> Thống kê thư viện</h3>
+                        <div id="library-stats" class="stats-grid">
+                            <div class="stat-item"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải...</div>
+                        </div>
+                    </div>
+
+                    <!-- Scan Paths Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-folder-tree"></i> Thư mục quét</h3>
+                        <p class="section-desc">Thêm các thư mục chứa video. Hỗ trợ OneDrive, Google Drive đã mount vào
+                            Windows Explorer.</p>
+
+                        <div class="add-path-form" style="display:flex; gap:8px;">
+                            <input type="text" id="new-path-input" placeholder="Nhập đường dẫn thư mục..."
+                                style="flex:1;" />
+                            <button class="btn-add-path" onclick="app.settings.pickFolder()" title="Chọn thư mục">
+                                <i class="fa-solid fa-folder-open"></i> Duyệt
+                            </button>
+                            <button class="btn-add-path" onclick="app.settings.addPath()">
+                                <i class="fa-solid fa-plus"></i> Thêm
+                            </button>
+                        </div>
+
+                        <div id="path-list" class="path-list">
+                            <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải...</div>
+                        </div>
+                    </div>
+
+                    <!-- Actions Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-wrench"></i> Thao tác</h3>
+                        <div class="settings-actions">
+                            <button class="btn-action primary" onclick="app.scanFromSettings()">
+                                <i class="fa-solid fa-magnifying-glass"></i> Quét thư viện
+                            </button>
+                            <button class="btn-action danger" onclick="app.settings.reset()">
+                                <i class="fa-solid fa-rotate-left"></i> Đặt lại mặc định
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Backup/Restore Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-database"></i> Sao lưu</h3>
+                        <div class="settings-actions">
+                            <button class="btn-action" onclick="app.settings.exportSettings()">
+                                <i class="fa-solid fa-download"></i> Xuất cài đặt
+                            </button>
+                            <button class="btn-action" onclick="app.settings.importSettings()">
+                                <i class="fa-solid fa-upload"></i> Nhập cài đặt
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Filters Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-filter"></i> Bộ lọc nâng cao</h3>
+
+                        <div class="filter-form">
+                            <div class="filter-row-inline">
+                                <label>Thư mục:</label>
+                                <select id="filter-folder" onchange="app.applyAdvancedFilters()">
+                                    <option value="">Tất cả thư mục</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-row-inline">
+                                <label>Kích thước:</label>
+                                <select id="filter-size" onchange="app.applyAdvancedFilters()">
+                                    <option value="">Tất cả</option>
+                                    <option value="small">
+                                        < 500 MB</option>
+                                    <option value="medium">500 MB - 2 GB</option>
+                                    <option value="large">2 - 10 GB</option>
+                                    <option value="huge">> 10 GB</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-row-inline">
+                                <label>Thời lượng:</label>
+                                <select id="filter-duration" onchange="app.applyAdvancedFilters()">
+                                    <option value="">Tất cả</option>
+                                    <option value="short">
+                                        < 5 phút</option>
+                                    <option value="medium">5 - 30 phút</option>
+                                    <option value="long">30 phút - 2 giờ</option>
+                                    <option value="movie">> 2 giờ</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-row-inline">
+                                <label>Tags:</label>
+                                <input type="text" id="filter-tags" placeholder="Nhập tag..."
+                                    onchange="app.applyAdvancedFilters()">
+                            </div>
+
+                            <button class="btn-action" onclick="app.resetAdvancedFilters()">
+                                <i class="fa-solid fa-rotate-left"></i> Đặt lại bộ lọc
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Duplicate Detection Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-clone"></i> Phát hiện trùng lặp</h3>
+                        <p class="section-desc">Tìm các video có cùng tên hoặc kích thước file.</p>
+                        <div class="settings-actions">
+                            <button class="btn-action" onclick="app.findDuplicates()">
+                                <i class="fa-solid fa-search"></i> Tìm file trùng
+                            </button>
+                        </div>
+                        <div id="duplicate-results" class="duplicate-list"></div>
+                    </div>
+                </div>
+
+                <div class="settings-footer">
+                    <span class="version-info">DRAM PLAYSV v5.0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+
+</html>
