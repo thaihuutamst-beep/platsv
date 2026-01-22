@@ -78,8 +78,8 @@ export class FolderPicker {
             this.updateBreadcrumbs([]);
 
             this.renderList(this.drives.map(d => ({
-                name: d.mount || d.device,
-                path: d.mount || d.device,
+                name: d.name || d.mount || d.device,
+                path: d.path || d.name || d.mount,
                 type: 'drive'
             })));
         } catch (e) {
@@ -109,7 +109,7 @@ export class FolderPicker {
             // items.push({ name: '.. (Lên trên)', path: '..', type: 'up' }); 
 
             // Sort: Folders first
-            const folders = (data.items || []).filter(i => i.isDirectory);
+            const folders = (data.items || []).filter(i => i.type === 'directory' || i.isDirectory);
             items.push(...folders.map(f => ({
                 name: f.name,
                 path: f.path,
