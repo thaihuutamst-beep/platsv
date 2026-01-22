@@ -8,6 +8,7 @@ const DEFINITIONS = {
         size INTEGER,
         duration REAL,
         thumbnail_path TEXT,
+        preview_path TEXT,
         is_cloud INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -43,6 +44,13 @@ const DEFINITIONS = {
         key TEXT PRIMARY KEY,
         value TEXT,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`,
+    playlists: `CREATE TABLE IF NOT EXISTS playlists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        items TEXT, -- JSON array of video IDs
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`
 };
 
@@ -50,11 +58,14 @@ const DEFINITIONS = {
 const EXTENDED_COLUMNS = [
     // Photos migration
     { table: 'photos', column: 'date_taken', definition: 'DATETIME' },
+    { table: 'photos', column: 'rotation', definition: 'INTEGER DEFAULT 0' },
+    { table: 'photos', column: 'is_cloud', definition: 'INTEGER DEFAULT 0' },
 
     // Core identifiers
     { table: 'videos', column: 'is_cloud', definition: 'INTEGER DEFAULT 0' },
     // ... existing columns ...
     { table: 'videos', column: 'thumbnail_path', definition: 'TEXT' },
+    { table: 'videos', column: 'preview_path', definition: 'TEXT' },
     { table: 'videos', column: 'duration', definition: 'REAL' },
 
     // Video metadata

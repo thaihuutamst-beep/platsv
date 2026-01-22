@@ -56,8 +56,20 @@ class MpvService {
         return await db.get('SELECT * FROM videos WHERE id = ?', id);
     }
 
-    async addToQueue(id) {
-        const video = await this.getVideoById(id);
+    async addToQueue(target) {
+        let video;
+        if (typeof target === 'string' && (target.startsWith('http://') || target.startsWith('https://'))) {
+            video = {
+                id: 'url_' + Date.now(),
+                filename: target,
+                path: target,
+                duration: 0,
+                is_url: true
+            };
+        } else {
+            video = await this.getVideoById(target);
+        }
+
         if (!video) return { success: false, error: 'Video not found' };
 
         this.queue.push(video);
@@ -68,15 +80,27 @@ class MpvService {
         return { success: true, video };
     }
 
-    async play(id) {
-        const video = await this.getVideoById(id);
+    async play(target, options = {}) {
+        let video;
+        if (typeof target === 'string' && (target.startsWith('http://') || target.startsWith('https://'))) {
+            video = {
+                id: 'url_' + Date.now(),
+                filename: target,
+                path: target,
+                duration: 0,
+                is_url: true
+            };
+        } else {
+            video = await this.getVideoById(target);
+        }
+
         if (!video) return { success: false, error: 'Video not found' };
         this.queue = [video];
-        await this.playIndex(0);
+        await this.playIndex(0, options);
         return { success: true, video };
     }
 
-    async playIndex(index) {
+    async playIndex(index, options = {}) {
         if (index < 0 || index >= this.queue.length) return;
 
         this.currentIndex = index;
@@ -91,8 +115,20 @@ class MpvService {
             console.log(`🔄 Switching track: ${this.current.filename}`);
             this.sendIpcCommand(['loadfile', videoPath, 'replace']);
 
-            // Restore view state after file loads (small delay for file to start loading)
+            // Restore view state after file loads
             setTimeout(() => this.restoreViewState(), 500);
+
+            // Apply start time if provided
+            if (options.start && !isNaN(options.start)) {
+                // Wait slightly longer than restore view state
+                setTimeout(() => {
+                    console.log(`⏩ Seeking to start time: ${options.start}s`);
+                    this.sendIpcCommand(['seek', options.start, 'absolute']);
+                }, 800);
+            }
+
+            // Focus window
+            setTimeout(() => this.focusWindow(), 1000);
 
             this.broadcastStatus();
             return { success: true };
@@ -125,6 +161,17 @@ class MpvService {
             // Wait a bit for pipe to be ready
             setTimeout(() => this.connectIPC(), 1000);
 
+            // Focus window after it has a chance to appear
+            setTimeout(() => this.focusWindow(), 2000);
+
+            // Apply start time if provided (and valid)
+            if (options.start && !isNaN(options.start)) {
+                setTimeout(() => {
+                    console.log(`⏩ Seeking to start time: ${options.start}s`);
+                    this.sendIpcCommand(['seek', options.start, 'absolute']);
+                }, 2500); // 2.5s to ensure file loaded
+            }
+
             this.mpvProcess.on('close', (code) => {
                 console.log(`⏹️ MPV closed with code ${code}`);
                 this.cleanup();
@@ -141,6 +188,17 @@ class MpvService {
 
         this.broadcastStatus();
         return { success: true };
+    }
+
+    focusWindow() {
+        if (!this.current) return;
+        const title = 'DRAM Player - ' + this.current.filename;
+        // Escape single quotes for PowerShell
+        const escapedTitle = title.replace(/'/g, "''");
+        const psCommand = `(New-Object -ComObject WScript.Shell).AppActivate('${escapedTitle}')`;
+        exec(`powershell -command "${psCommand}"`, (err) => {
+            if (err) console.log('Focus attempt finished');
+        });
     }
 
     connectIPC() {
@@ -269,6 +327,28 @@ class MpvService {
                 }
                 break;
 
+            case 'seek':
+                if (value) {
+                    // value can be relative "+10", "-10" or absolute "50%""
+                    this.sendIpcCommand(['seek', value, 'relative']);
+                }
+                break;
+            case 'seek_absolute':
+                if (value) {
+                    this.sendIpcCommand(['seek', value, 'absolute']);
+                }
+                break;
+            case 'keypress':
+                if (value) {
+                    this.sendIpcCommand(['keypress', value]);
+                    this.sendIpcCommand(['show-text', `Key: ${value}`]);
+                }
+                break;
+            case 'fullscreen':
+                this.viewState.fullscreen = !this.viewState.fullscreen;
+                this.sendIpcCommand(['cycle', 'fullscreen']);
+                break;
+
             // Visual Controls - Zoom/Pan/Rotate (SAVE STATE)
             case 'zoom':
                 if (value !== null) {
@@ -294,6 +374,7 @@ class MpvService {
                     this.sendIpcCommand(['set', 'video-rotate', this.viewState.rotate]);
                 }
                 break;
+            case 'focus': this.focusWindow(); break;
             case 'reset_view':
                 // Reset all view settings to default AND clear saved state
                 this.viewState.zoom = 0;

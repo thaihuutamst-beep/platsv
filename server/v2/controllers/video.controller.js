@@ -114,3 +114,38 @@ exports.updateMetadata = async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 };
+
+exports.rotateVideo = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rotation } = req.body; // Expects 0, 90, 180, 270
+        const db = await connectDB();
+        await db.run('UPDATE videos SET rotation = ? WHERE id = ?', [parseInt(rotation) || 0, id]);
+        res.json({ success: true, rotation: parseInt(rotation) || 0 });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};
+
+exports.importUrl = async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).json({ error: 'URL is required' });
+
+        const db = await connectDB();
+
+        // Check exist
+        const existing = await db.get('SELECT id FROM videos WHERE path = ?', url);
+        if (existing) return res.json({ id: existing.id });
+
+        // Insert new
+        const result = await db.run(`
+            INSERT INTO videos (filename, path, size, duration, created_at, updated_at, is_cloud, mediaType)
+            VALUES (?, ?, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, 'video')
+        `, [url, url]);
+
+        res.json({ id: result.lastID });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+};

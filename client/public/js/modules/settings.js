@@ -70,6 +70,11 @@ export class SettingsManager {
     async open() {
         this.overlay.classList.remove('hidden');
         await this.loadData();
+
+        // Sync player UI settings
+        if (window.app?.player?.syncSettingsUI) {
+            window.app.player.syncSettingsUI();
+        }
     }
 
     // Close settings modal
@@ -184,63 +189,48 @@ export class SettingsManager {
 
     // Add new path
     async addPath() {
-        const input = document.getElementById('new-path-input');
-        const path = input.value.trim();
+        if (window.app.folderPicker) {
+            window.app.folderPicker.open(async (path) => {
+                const result = await addScanPath(path);
+                if (result.error) {
+                    alert(`Lỗi: ${result.error}`);
+                } else {
+                    await this.loadData();
+                }
+            });
+        } else {
+            // Fallback to manual input if picker not initialized
+            const input = document.getElementById('new-path-input');
+            const path = input.value.trim();
 
-        if (!path) {
-            alert('Vui lòng nhập đường dẫn thư mục');
-            return;
+            if (!path) {
+                alert('Vui lòng nhập đường dẫn thư mục');
+                return;
+            }
+
+            const result = await addScanPath(path);
+            if (result.error) {
+                alert(`Lỗi: ${result.error}`);
+                return;
+            }
+
+            input.value = '';
+            await this.loadData();
         }
-
-        const result = await addScanPath(path);
-
-        if (result.error) {
-            alert(`Lỗi: ${result.error}`);
-            return;
-        }
-
-        input.value = '';
-        await this.loadData();
     }
 
-    // Pick folder using native dialog
+    // Pick folder using custom dialog
     async pickFolder() {
-        try {
-            // Check if File System Access API is available
-            if ('showDirectoryPicker' in window) {
-                const dirHandle = await window.showDirectoryPicker();
-                const path = dirHandle.name; // This gives folder name, not full path
-
-                // For Windows, we need the full path but browser API doesn't expose it
-                // Show instruction to user
-                const fullPath = prompt(
-                    `Đã chọn thư mục: "${dirHandle.name}"\n\n` +
-                    `Vui lòng nhập đường dẫn đầy đủ (ví dụ: C:\\Videos\\${dirHandle.name}):\n` +
-                    `Hoặc nhấn Cancel để nhập thủ công.`
-                );
-
-                if (fullPath) {
-                    const result = await addScanPath(fullPath);
-                    if (result.error) {
-                        alert(`Lỗi: ${result.error}`);
-                    } else {
-                        await this.loadData();
-                    }
+        if (window.app && window.app.folderPicker) {
+            window.app.folderPicker.open(async (path) => {
+                if (path) {
+                    // Update input value
+                    const input = document.getElementById('new-path-input');
+                    if (input) input.value = path;
                 }
-            } else {
-                // Fallback: Show instruction for manual input
-                alert(
-                    'Trình duyệt không hỗ trợ chọn thư mục tự động.\n\n' +
-                    'Vui lòng:\n' +
-                    '1. Mở File Explorer\n' +
-                    '2. Tìm thư mục chứa video\n' +
-                    '3. Copy đường dẫn từ thanh địa chỉ\n' +
-                    '4. Paste vào ô bên dưới'
-                );
-            }
-        } catch (err) {
-            // User cancelled or error occurred
-            console.log('Folder picker cancelled or error:', err);
+            });
+        } else {
+            alert('Lỗi: Folder Picker chưa được khởi tạo.');
         }
     }
 

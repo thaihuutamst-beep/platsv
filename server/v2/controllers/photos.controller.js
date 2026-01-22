@@ -2,6 +2,8 @@ const photoService = require('../services/photos.service');
 const path = require('path');
 const fs = require('fs');
 
+const { connectDB } = require('../core/database');
+
 exports.list = async (req, res) => {
     try {
         const { limit, offset, sort } = req.query;
@@ -39,4 +41,14 @@ exports.view = async (req, res) => {
         if (!photo) return res.status(404).send('Not found');
         res.sendFile(photo.path);
     } catch (e) { res.status(500).send(e.message); }
+};
+
+exports.rotate = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rotation } = req.body; // 0, 90, 180, 270
+        const db = await connectDB();
+        await db.run('UPDATE photos SET rotation = ? WHERE id = ?', [parseInt(rotation) || 0, id]);
+        res.json({ success: true, rotation: parseInt(rotation) || 0 });
+    } catch (e) { res.status(500).json({ error: e.message }); }
 };

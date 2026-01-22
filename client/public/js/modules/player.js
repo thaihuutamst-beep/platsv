@@ -1,4 +1,4 @@
-import { getPlaybackPos, savePlaybackPos, fetchAllVideos } from './api.js';
+import { getPlaybackPos, savePlaybackPos, fetchAllVideos, remoteControl } from './api.js';
 
 export class VideoPlayer {
     constructor() {
@@ -25,6 +25,69 @@ export class VideoPlayer {
         this.touchStartX = 0;
         this.touchStartY = 0;
         this.isPanning = false;
+
+        // UI Preferences & Smart Logic
+        this.isMouseUser = false;
+        this.uiPrefs = {
+            autoHideDelay: 3000,
+            smartUI: true,      // Move secondary buttons to menu for mouse users
+            noGradient: true,   // Remove overlay gradients
+            hiddenControls: []
+        };
+        this.loadUIPrefs();
+    }
+
+    loadUIPrefs() {
+        const saved = localStorage.getItem('dram_player_ui');
+        if (saved) {
+            try {
+                this.uiPrefs = { ...this.uiPrefs, ...JSON.parse(saved) };
+            } catch (e) {
+                console.error('Failed to load UI prefs:', e);
+            }
+        }
+    }
+
+    saveUIPrefs() {
+        localStorage.setItem('dram_player_ui', JSON.stringify(this.uiPrefs));
+        // Update live settings in modal if open
+        this.syncSettingsUI();
+    }
+
+    syncSettingsUI() {
+        const h = document.getElementById('setting-auto-hide');
+        const s = document.getElementById('setting-smart-ui');
+        const g = document.getElementById('setting-no-gradient');
+        if (h) h.value = this.uiPrefs.autoHideDelay;
+        if (s) s.checked = this.uiPrefs.smartUI;
+        if (g) g.checked = this.uiPrefs.noGradient;
+    }
+
+    updateSetting(key, value) {
+        if (key === 'autoHideDelay') value = parseInt(value);
+        this.uiPrefs[key] = value;
+        this.saveUIPrefs();
+
+        // Refresh UI
+        this.createAdvancedControls();
+        this.setupEventListeners();
+
+        // Refresh visuals
+        this.applyUIVisuals();
+    }
+
+    applyUIVisuals() {
+        if (!this.controls) return;
+        this.controls.classList.toggle('no-gradient', this.uiPrefs.noGradient);
+
+        const secondary = this.controls.querySelector('.secondary-row');
+        if (this.uiPrefs.smartUI && this.isMouseUser) {
+            // Mouse user + Smart UI: Hide secondary row
+            if (secondary) secondary.style.display = 'none';
+        } else {
+            // Touch user or Smart UI off: Show secondary row
+            if (secondary) secondary.style.display = 'flex';
+        }
     }
 
     // Initialize player UI
@@ -33,7 +96,7 @@ export class VideoPlayer {
         this.setupEventListeners();
     }
 
-    // Create edge-based controls overlay - minimal center, controls on edges
+    // Create unified controls overlay - most controls at the bottom
     createAdvancedControls() {
         const wrapper = this.overlay.querySelector('.video-wrapper');
         if (!wrapper) return;
@@ -44,68 +107,117 @@ export class VideoPlayer {
         const oldAdvanced = this.overlay.querySelector('.advanced-controls');
         if (oldAdvanced) oldAdvanced.remove();
 
-        // Create new edge-based controls
+        // Create new controls container
         const controls = document.createElement('div');
-        controls.className = 'advanced-controls edge-controls';
+        controls.className = 'advanced-controls unified-controls';
+        if (this.uiPrefs.noGradient) controls.classList.add('no-gradient');
+
         controls.innerHTML = `
-            <!-- Top Edge: Title + Actions -->
-            <div class="edge-top">
-                <button class="edge-btn" data-action="close"><i class="fa-solid fa-chevron-down"></i></button>
-                <span class="edge-title" id="adv-title"></span>
-                <div class="edge-actions">
-                    <button class="edge-btn" data-action="pip"><i class="fa-solid fa-window-restore"></i></button>
-                    <button class="edge-btn" data-action="fullscreen"><i class="fa-solid fa-expand"></i></button>
-                </div>
+            <!-- Top: Title and Close -->
+            <div class="controls-top">
+                <span class="controls-title" id="adv-title"></span>
+                <button class="controls-btn-close" data-action="close"><i class="fa-solid fa-xmark"></i></button>
             </div>
 
-            <!-- Center: Only Play button (shown when paused) -->
+            <!-- Center: Play/Pause indicator -->
             <div class="center-play-btn hidden" id="center-play">
                 <button class="btn-play-big" data-action="playpause"><i class="fa-solid fa-play"></i></button>
             </div>
 
-            <!-- Left Edge: Volume -->
-            <div class="edge-left">
-                <button class="edge-btn" data-action="mute" id="btn-mute"><i class="fa-solid fa-volume-high"></i></button>
-                <input type="range" class="edge-slider vertical" id="volume-slider" min="0" max="100" value="100" orient="vertical">
+            <!-- Overflow Menu -->
+            <div id="overflow-menu" class="overflow-menu hidden">
+                <button class="menu-item" data-action="rotate"><i class="fa-solid fa-rotate-right"></i> Xoay video</button>
+                <button class="menu-item" data-action="fit"><i class="fa-solid fa-expand"></i> Auto fit</button>
+                <button class="menu-item" data-action="loop"><i class="fa-solid fa-repeat"></i> Lặp lại</button>
+                <button class="menu-item" data-action="save-queue"><i class="fa-solid fa-cloud-arrow-up"></i> Lưu Playlist</button>
+                <button class="menu-item" data-action="focus"><i class="fa-solid fa-maximize"></i> Đưa lên trên</button>
+                <button class="menu-item" data-action="pip"><i class="fa-solid fa-window-restore"></i> Picture-in-Picture</button>
             </div>
 
-            <!-- Right Edge: Tools with Zoom Control -->
-            <div class="edge-right">
-                <button class="edge-btn" data-action="speed" id="btn-speed-adv">1x</button>
-                <button class="edge-btn" data-action="rotate"><i class="fa-solid fa-rotate-right"></i></button>
-                
-                <!-- Zoom Control with +/- -->
-                <div class="zoom-control">
-                    <button class="zoom-btn small" data-action="zoom-down-small">-</button>
-                    <button class="zoom-btn large" data-action="zoom-down">−</button>
-                    <input type="text" class="zoom-input" id="zoom-input" value="1.00" readonly>
-                    <button class="zoom-btn large" data-action="zoom-up">+</button>
-                    <button class="zoom-btn small" data-action="zoom-up-small">+</button>
+            <!-- Floating Control Bar (Smaller, Transparent) -->
+            <div class="controls-floating-bar">
+                <div class="controls-row main-row">
+                    <div class="group-left">
+                        <button class="ctrl-btn" data-action="prev" title="Previous"><i class="fa-solid fa-backward-step"></i></button>
+                        <button class="ctrl-btn-play" data-action="playpause" id="btn-playpause"><i class="fa-solid fa-play"></i></button>
+                        <button class="ctrl-btn" data-action="next" title="Next"><i class="fa-solid fa-forward-step"></i></button>
+                        <div class="time-display">
+                            <span id="time-current">0:00</span> / <span id="time-total">0:00</span>
+                        </div>
+                    </div>
+
+                    <div class="group-center">
+                        <!-- Spacer -->
+                    </div>
+
+                    <div class="group-right">
+                        <div class="volume-container-unified mobile-hidden">
+                             <button class="ctrl-btn" data-action="mute" id="btn-mute"><i class="fa-solid fa-volume-high"></i></button>
+                             <input type="range" id="volume-slider" min="0" max="100" value="100">
+                        </div>
+                        <button class="ctrl-btn" data-action="switch-mpv" title="Switch to MPV"><i class="fa-solid fa-desktop"></i></button>
+                        <button class="ctrl-btn" data-action="more" title="More Tools"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                        <button class="ctrl-btn" data-action="fullscreen" title="Fullscreen"><i class="fa-solid fa-expand"></i></button>
+                    </div>
                 </div>
-                <button class="edge-btn" data-action="fit" title="Auto Fit"><i class="fa-solid fa-expand"></i></button>
-                
-                <button class="edge-btn" data-action="loop" id="btn-loop"><i class="fa-solid fa-repeat"></i></button>
             </div>
 
-            <!-- Bottom Edge: Progress + Quick controls -->
-            <div class="edge-bottom">
-                <div class="progress-minimal">
-                    <span class="time-current" id="time-current">0:00</span>
-                    <input type="range" class="progress-bar-edge" id="progress-bar" min="0" max="100" value="0">
-                    <span class="time-total" id="time-total">0:00</span>
+            <!-- Bottom Pinned Timeline (Marble Only) -->
+            <div class="bottom-timeline-container">
+                <div id="timeline-preview" class="timeline-preview hidden">
+                    <img id="preview-thumb" src="" />
+                    <span id="preview-time">0:00</span>
                 </div>
-                <div class="quick-controls">
-                    <button class="edge-btn" data-action="prev"><i class="fa-solid fa-backward-step"></i></button>
-                    <button class="edge-btn" data-action="rewind"><i class="fa-solid fa-rotate-left"></i></button>
-                    <button class="edge-btn-play" data-action="playpause" id="btn-playpause"><i class="fa-solid fa-play"></i></button>
-                    <button class="edge-btn" data-action="forward"><i class="fa-solid fa-rotate-right"></i></button>
-                    <button class="edge-btn" data-action="next"><i class="fa-solid fa-forward-step"></i></button>
-                </div>
+                <input type="range" class="progress-bar-marble" id="progress-bar" min="0" max="100" value="0">
             </div>
         `;
 
         wrapper.parentElement.appendChild(controls);
         this.controls = controls;
+        this.applyUIVisuals();
+
+        // Setup Timeline Hover
+        this.setupTimelineHover();
+    }
+
+    setupTimelineHover() {
+        const bar = this.controls.querySelector('#progress-bar');
+        const preview = this.controls.querySelector('#timeline-preview');
+        const previewTime = this.controls.querySelector('#preview-time');
+        const previewThumb = this.controls.querySelector('#preview-thumb');
+
+        if (!bar || !preview) return;
+
+        bar.addEventListener('mousemove', (e) => {
+            const rect = bar.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+
+            // Calc time
+            const duration = this.videoEl.duration || 0;
+            const time = duration * percent;
+
+            // Update preview
+            previewTime.textContent = this.formatTime(time);
+
+            // Show main thumbnail (fallback)
+            const currentVideo = this.state.playlist[this.state.currentIndex];
+            if (currentVideo && currentVideo.thumbnail_path) {
+                const src = currentVideo.thumbnail_path.startsWith('thumbnails/') ? '/' + currentVideo.thumbnail_path : currentVideo.thumbnail_path;
+                previewThumb.src = src;
+            }
+
+            // Position
+            const previewWidth = 120; // Approx
+            let left = e.clientX - (previewWidth / 2);
+            left = Math.max(10, Math.min(window.innerWidth - previewWidth - 10, left));
+
+            preview.style.left = `${left}px`;
+            preview.classList.remove('hidden');
+        });
+
+        bar.addEventListener('mouseleave', () => {
+            preview.classList.add('hidden');
+        });
     }
 
     // Setup all event listeners
@@ -128,6 +240,24 @@ export class VideoPlayer {
             };
         }
 
+        // Speed slider
+        const speedSlider = this.controls.querySelector('#speed-slider');
+        if (speedSlider) {
+            speedSlider.oninput = () => {
+                this.setSpeed(parseFloat(speedSlider.value));
+            };
+        }
+
+        // Zoom slider
+        const zoomSlider = this.controls.querySelector('#zoom-slider');
+        if (zoomSlider) {
+            zoomSlider.oninput = () => {
+                this.state.zoom = parseFloat(zoomSlider.value);
+                this.updateZoomDisplay();
+                this.applyTransform();
+            };
+        }
+
         // Volume slider
         const volumeSlider = this.controls.querySelector('#volume-slider');
         if (volumeSlider) {
@@ -138,7 +268,7 @@ export class VideoPlayer {
             };
         }
 
-        // Video events
+        // --- Video events ---
         this.videoEl.ontimeupdate = () => this.updateProgress();
         this.videoEl.onended = () => this.handleVideoEnd();
         this.videoEl.onplay = () => {
@@ -150,8 +280,22 @@ export class VideoPlayer {
             window.app?.context?.setState('paused');
         };
 
-        // Auto-hide controls
-        this.overlay.onmousemove = () => this.showControls();
+        // Auto-hide controls with smart detection
+        this.overlay.onmousemove = () => {
+            if (!this.isMouseUser) {
+                this.isMouseUser = true;
+                this.applyUIVisuals();
+            }
+            this.showControls();
+        };
+
+        this.overlay.ontouchstart = () => {
+            if (this.isMouseUser) {
+                this.isMouseUser = false;
+                this.applyUIVisuals();
+            }
+            this.showControls();
+        };
 
         // Touch gestures (mobile)
         this.setupTouchGestures();
@@ -161,6 +305,17 @@ export class VideoPlayer {
 
         // Mouse gestures (desktop)
         this.setupMouseGestures();
+
+        // Global click to close menu
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('overflow-menu');
+            const moreBtn = this.controls?.querySelector('[data-action="more"]');
+            if (menu && !menu.classList.contains('hidden')) {
+                if (!menu.contains(e.target) && !moreBtn?.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            }
+        });
     }
 
     // Mouse gestures for desktop: wheel zoom, click+drag pan, edge gestures
@@ -275,10 +430,33 @@ export class VideoPlayer {
 
                 this.showOSD(`⚡ ${this.state.speed.toFixed(2)}x`);
             } else if (isDragging) {
-                const deltaX = e.clientX - dragStartX;
-                const deltaY = e.clientY - dragStartY;
-                this.state.panX = panStartX + deltaX / this.state.zoom;
-                this.state.panY = panStartY + deltaY / this.state.zoom;
+                let deltaX = e.clientX - dragStartX;
+                let deltaY = e.clientY - dragStartY;
+
+                // Adjust pan direction based on rotation
+                const rotation = this.state.rotation % 360;
+                let adjustedDeltaX, adjustedDeltaY;
+
+                if (rotation === 90 || rotation === -270) {
+                    // Rotated 90° CW: drag right = pan down, drag down = pan left
+                    adjustedDeltaX = deltaY;
+                    adjustedDeltaY = -deltaX;
+                } else if (rotation === 180 || rotation === -180) {
+                    // Rotated 180°: invert both
+                    adjustedDeltaX = -deltaX;
+                    adjustedDeltaY = -deltaY;
+                } else if (rotation === 270 || rotation === -90) {
+                    // Rotated 270° CW: drag right = pan up, drag down = pan right
+                    adjustedDeltaX = -deltaY;
+                    adjustedDeltaY = deltaX;
+                } else {
+                    // No rotation (0°)
+                    adjustedDeltaX = deltaX;
+                    adjustedDeltaY = deltaY;
+                }
+
+                this.state.panX = panStartX + adjustedDeltaX / this.state.zoom;
+                this.state.panY = panStartY + adjustedDeltaY / this.state.zoom;
                 this.applyTransform();
             }
         };
@@ -500,7 +678,6 @@ export class VideoPlayer {
         });
     }
 
-    // Handle button actions
     handleAction(action) {
         this.showControls();
         switch (action) {
@@ -515,15 +692,58 @@ export class VideoPlayer {
             case 'forward': this.videoEl.currentTime += 10; break;
             case 'shuffle': this.toggleShuffle(); break;
             case 'loop': this.cycleLoopMode(); break;
-            case 'speed': this.cycleSpeed(); break;
+            case 'speed-up': this.setSpeed(this.state.speed + 0.1); break;
+            case 'speed-down': this.setSpeed(this.state.speed - 0.1); break;
             case 'rotate': this.rotate(); break;
-            case 'zoom': this.cycleZoom(); break;
             case 'zoom-up': this.adjustZoom(0.1); break;
             case 'zoom-down': this.adjustZoom(-0.1); break;
             case 'zoom-up-small': this.adjustZoom(0.01); break;
             case 'zoom-down-small': this.adjustZoom(-0.01); break;
             case 'fit': this.autoFit(); break;
+            case 'focus': remoteControl('focus'); break;
+            case 'switch-mpv':
+                this.videoEl.pause();
+                const current = this.state.playlist[this.state.currentIndex];
+                if (current) {
+                    // Send request with options including start time
+                    // Start time is formatted as seconds for MPV
+                    const startTime = this.videoEl.currentTime;
+                    remoteControl('play', current.id, { start: startTime });
+
+                    // Request focus immediately
+                    setTimeout(() => remoteControl('focus'), 500);
+
+                    window.app.showToast(`Đang chuyển "${current.filename}" sang MPV @ ${this.formatTime(startTime)}...`);
+                }
+                break;
+            case 'save-queue':
+                const ids = this.state.playlist.map(v => v.id);
+                if (ids.length === 0) window.app.showToast("Danh sách đang trống!");
+                else window.app.playlistManager.open(ids);
+                this.toggleMoreMenu();
+                break;
+            case 'more': this.toggleMoreMenu(); break;
         }
+    }
+
+    toggleMoreMenu() {
+        const menu = document.getElementById('overflow-menu');
+        if (menu) menu.classList.toggle('hidden');
+    }
+
+    // Speed control
+    setSpeed(value) {
+        this.state.speed = Math.max(0.1, Math.min(4, Math.round(value * 10) / 10));
+        this.videoEl.playbackRate = this.state.speed;
+        this.updateSpeedDisplay();
+    }
+
+    updateSpeedDisplay() {
+        if (!this.controls) return;
+        const val = document.getElementById('speed-val');
+        const slider = document.getElementById('speed-slider');
+        if (val) val.textContent = this.state.speed.toFixed(1) + 'x';
+        if (slider) slider.value = this.state.speed;
     }
 
     // Playback controls
@@ -543,11 +763,7 @@ export class VideoPlayer {
 
         // Show center play button only when paused
         if (centerPlay) {
-            if (playing) {
-                centerPlay.classList.add('hidden');
-            } else {
-                centerPlay.classList.remove('hidden');
-            }
+            centerPlay.classList.toggle('hidden', playing);
         }
     }
 
@@ -777,7 +993,11 @@ export class VideoPlayer {
         this.controlsVisible = true;
         if (this.controls) this.controls.classList.remove('hidden');
         clearTimeout(this.hideTimeout);
-        this.hideTimeout = setTimeout(() => this.hideControls(), 3000);
+
+        const delay = this.uiPrefs.autoHideDelay;
+        if (delay > 0) {
+            this.hideTimeout = setTimeout(() => this.hideControls(), delay);
+        }
     }
 
     hideControls() {

@@ -52,15 +52,16 @@ class ScannerService {
                 try {
                     await db.run(`
                         INSERT INTO videos (
-                            filename, path, size, duration, thumbnail_path, is_cloud, width, height,
+                            filename, path, size, duration, thumbnail_path, preview_path, is_cloud, width, height,
                             fps, bitrate, codec_video, codec_audio, rotation, audio_channels, sample_rate, has_audio,
                             updated_at
                         )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                         ON CONFLICT(path) DO UPDATE SET 
                             size=excluded.size, 
                             duration=excluded.duration,
                             thumbnail_path=excluded.thumbnail_path,
+                            preview_path=excluded.preview_path,
                             width=excluded.width,
                             height=excluded.height,
                             fps=excluded.fps,
@@ -73,7 +74,7 @@ class ScannerService {
                             has_audio=excluded.has_audio,
                             updated_at=CURRENT_TIMESTAMP
                     `, [
-                        v.filename, v.path, v.size, v.duration, v.thumbnail_path, v.is_cloud, v.width, v.height,
+                        v.filename, v.path, v.size, v.duration, v.thumbnail_path, v.preview_path, v.is_cloud, v.width, v.height,
                         v.fps, v.bitrate, v.codec_video, v.codec_audio, v.rotation, v.audio_channels, v.sample_rate, v.has_audio
                     ]);
 
@@ -98,15 +99,16 @@ class ScannerService {
 
                 try {
                     await db.run(`
-                        INSERT INTO photos (filename, path, size, width, height, date_taken, thumbnail_path, is_cloud, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        INSERT INTO photos (filename, path, size, width, height, date_taken, thumbnail_path, is_cloud, rotation, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                         ON CONFLICT(path) DO UPDATE SET 
                             size=excluded.size,
                             width=excluded.width,
                             height=excluded.height,
                             thumbnail_path=excluded.thumbnail_path,
+                            rotation=excluded.rotation,
                             updated_at=CURRENT_TIMESTAMP
-                    `, [p.filename, p.path, size, width, height, dateTaken, thumbPath, p.is_cloud]);
+                    `, [p.filename, p.path, size, width, height, dateTaken, thumbPath, p.is_cloud, p.rotation || 0]);
 
                     if (this.io) {
                         this.io.emit('scan_progress', { file: p.filename });

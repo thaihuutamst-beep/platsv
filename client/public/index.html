@@ -32,8 +32,9 @@
                     <button id="btn-scan" class="nav-item"><i class="fa-solid fa-radar"></i> Quét Video</button>
                     <button class="nav-item" onclick="app.openSettings()"><i class="fa-solid fa-gear"></i> Cài
                         đặt</button>
-                    <div id="scan-status" style="font-size:0.8rem; color:#666; padding:10px; text-align:center;">Sẵn
-                        sàng</div>
+                    <button class="nav-item" onclick="app.showAddLinkModal()"><i class="fa-solid fa-link"></i> Thêm
+                        Link</button>
+                    <div id="scan-status" class="scan-status">Sẵn sàng</div>
                     <div style="text-align:center; margin-top:15px;">
                         <canvas id="qr-code"></canvas>
                         <p id="network-url" style="font-size:0.7rem; color:#666;">...</p>
@@ -88,9 +89,18 @@
             </div>
 
             <div class="content-scroll-area">
-                <div id="continue-section" class="section hidden">
-                    <h3 class="section-title">Xem tiếp</h3>
-                    <div id="continue-grid" class="horizontal-scroll"></div>
+                <div id="continue-section" class="horizontal-section hidden">
+                    <div class="horizontal-header">
+                        <h2><i class="fa-solid fa-clock-rotate-left"></i> Tiếp tục xem</h2>
+                    </div>
+                    <div id="continue-grid" class="horizontal-list"></div>
+                </div>
+
+                <div id="recent-section" class="horizontal-section hidden">
+                    <div class="horizontal-header">
+                        <h2><i class="fa-solid fa-sparkles"></i> Mới thêm gần đây</h2>
+                    </div>
+                    <div id="recent-grid" class="horizontal-list"></div>
                 </div>
                 <div id="video-grid" class="video-grid"></div>
                 <div id="photo-grid" class="video-grid hidden"></div>
@@ -356,9 +366,14 @@
                         <i class="fa-solid fa-rotate-left"></i> Reset All
                     </button>
                 </div>
-                <h3
-                    style="font-size:0.9rem; color:#666; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px;">
-                    HÀNG ĐỢI (<span id="queue-count">0</span>)</h3>
+                <div
+                    style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px;">
+                    <h3 style="font-size:0.9rem; color:#666; margin:0;">HÀNG ĐỢI (<span id="queue-count">0</span>)</h3>
+                    <button onclick="app.saveRemoteQueue()"
+                        style="background:none; border:none; color:var(--primary); font-size:0.85rem; cursor:pointer;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Lưu Playlist
+                    </button>
+                </div>
                 <div id="queue-list" style="flex:1; overflow-y:auto; font-size:0.9rem;"></div>
             </div>
 
@@ -383,6 +398,45 @@
                         <h3><i class="fa-solid fa-chart-simple"></i> Thống kê thư viện</h3>
                         <div id="library-stats" class="stats-grid">
                             <div class="stat-item"><i class="fa-solid fa-spinner fa-spin"></i> Đang tải...</div>
+                        </div>
+                    </div>
+
+                    <!-- UI Customization Section -->
+                    <div class="settings-section">
+                        <h3><i class="fa-solid fa-desktop"></i> GIAO DIỆN PHÁT</h3>
+                        <div class="section-desc">Tùy chỉnh các thành phần hiển thị trên trình phát video.</div>
+
+                        <div class="ui-settings" id="ui-settings-list">
+                            <div class="ui-setting-row">
+                                <div class="ui-setting-info">
+                                    <h4>Thời gian tự ẩn</h4>
+                                    <p>Ẩn thanh điều khiển sau (giây)</p>
+                                </div>
+                                <select id="setting-auto-hide" class="styled-select"
+                                    onchange="app.player.updateSetting('autoHideDelay', this.value)">
+                                    <option value="2000">2 giây</option>
+                                    <option value="3000">3 giây</option>
+                                    <option value="5000">5 giây</option>
+                                    <option value="8000">8 giây</option>
+                                    <option value="0">Không ẩn</option>
+                                </select>
+                            </div>
+                            <div class="ui-setting-row">
+                                <div class="ui-setting-info">
+                                    <h4>Hiện các phím Xoay/Zoom</h4>
+                                    <p>Gom bớt chức năng vào Menu khi dùng chuột</p>
+                                </div>
+                                <input type="checkbox" id="setting-smart-ui" checked
+                                    onchange="app.player.updateSetting('smartUI', this.checked)">
+                            </div>
+                            <div class="ui-setting-row">
+                                <div class="ui-setting-info">
+                                    <h4>Ẩn thanh Gradient</h4>
+                                    <p>Loại bỏ bóng mờ ở cạnh trên/dưới</p>
+                                </div>
+                                <input type="checkbox" id="setting-no-gradient" checked
+                                    onchange="app.player.updateSetting('noGradient', this.checked)">
+                            </div>
                         </div>
                     </div>
 
@@ -497,6 +551,35 @@
 
                 <div class="settings-footer">
                     <span class="version-info">DRAM PLAYSV v5.0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADD LINK MODAL -->
+        <div id="add-link-overlay" class="settings-overlay hidden">
+            <div class="settings-modal" style="max-width:500px">
+                <div class="settings-header">
+                    <h2><i class="fa-solid fa-link"></i> Thêm Link (MPV)</h2>
+                    <button class="btn-close" onclick="app.closeAddLinkModal()"><i
+                            class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="settings-body">
+                    <div class="settings-section">
+                        <p class="section-desc">Dán link Youtube, Facebook, Twitch hoặc link video trực tiếp để phát
+                            trên MPV (sử dụng yt-dlp).</p>
+                        <div style="display:flex; gap:10px; margin-bottom:15px;">
+                            <input type="text" id="add-link-input" placeholder="https://youtube.com/watch?v=..."
+                                style="flex:1; padding:10px; border-radius:8px; border:1px solid #444; background:#222; color:white;">
+                            <button class="btn-action" onclick="app.pasteLinkFromClipboard()"
+                                title="Dán từ Clipboard"><i class="fa-solid fa-paste"></i></button>
+                        </div>
+                        <div class="settings-actions" style="justify-content: flex-end;">
+                            <button class="btn-action" onclick="app.handleAddLink('queue')"><i
+                                    class="fa-solid fa-list-ol"></i> Thêm Queue</button>
+                            <button class="btn-action primary" onclick="app.handleAddLink('play')"><i
+                                    class="fa-solid fa-play"></i> Phát Ngay</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

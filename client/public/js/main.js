@@ -1,11 +1,13 @@
-import * as API from './modules/api.js';
 import * as UI from './modules/ui.js';
 import { VideoPlayer } from './modules/player.js';
 import { DataManager } from './modules/manager.js';
 import { SettingsManager } from './modules/settings.js';
 import { PhotoViewer } from './modules/photo-viewer.js';
 import { FloatingRemote } from './modules/floating-remote.js';
+import { PlaylistManager } from './modules/playlist-manager.js';
+import { FolderPicker } from './modules/folder-picker.js';
 import { playbackContext } from './modules/context.js';
+import * as API from './modules/api.js';
 
 class DramApp {
     constructor() {
@@ -14,6 +16,8 @@ class DramApp {
         this.settings = new SettingsManager();
         this.photoViewer = new PhotoViewer();
         this.floatingRemote = new FloatingRemote();
+        this.playlistManager = new PlaylistManager();
+        this.folderPicker = new FolderPicker();
         this.context = playbackContext;
         this.socket = null;
         this.init();
@@ -40,12 +44,25 @@ class DramApp {
 
     async reloadData() {
         const actions = this.getActions();
+
+        // 1. Continue Watching
         const watching = await API.fetchContinueWatching();
         UI.renderGrid(watching, 'continue-grid', this.manager.selectedIds, actions);
         UI.toggleSection('continue-section', watching.length > 0);
+
+        // 2. All Videos & Recent
         const videos = await API.fetchAllVideos();
         this.manager.setData(videos);
         this.renderMainGrid();
+
+        // 3. Recently Added (Client-side sort for now)
+        // Sort by created_at desc (id desc is usually good enough proxy if autoinc, but date is safer)
+        const recent = [...videos]
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+            .slice(0, 20);
+
+        UI.renderGrid(recent, 'recent-grid', this.manager.selectedIds, actions);
+        UI.toggleSection('recent-section', recent.length > 0);
     }
 
     renderMainGrid() {
@@ -100,6 +117,74 @@ class DramApp {
                     this.showToast("Đã cập nhật metadata");
                 } else {
                     alert("Lỗi: " + res.error);
+                }
+            },
+
+            // Save to Playlist
+            onSaveToPlaylist: (ids) => {
+                // If ids passed, use them. Else use selection.
+                const items = ids || Array.from(this.manager.selectedIds);
+                if (!items || items.length === 0) return this.showToast("Chưa chọn mục nào!");
+                this.playlistManager.open(items);
+            },
+
+            // Open Playlist Manager
+            onManagePlaylists: () => {
+                this.playlistManager.open([]);
+            },
+
+            // Rotate Image/Video
+            onRotate: async (id, type, degrees) => {
+                const item = this.manager.allVideos.find(v => v.id == id && (v.mediaType === type || (type === 'video' && v.mediaType !== 'photo')));
+                // Note: manager holds videos. Photos might be separate?
+                // Wait, DataManager holds 'items'. 
+                // But photos are loaded via loadPhotos().
+                // I need to check where photos are stored. 
+                // DramApp.loadPhotos calls UI.renderPhotoGrid with data.photos.
+                // It doesn't seem to store photos in manager nicely? 
+
+                // For now assuming we can pass the item or find it.
+                // Let's rely on API response or passing current rotation from UI if needed?
+                // UI has the item object. But onRotate only receives id, type.
+
+                // Better approach: Fetch current rotation from DOM or API? 
+                // Simplest: Just use API to "add" rotation? 
+                // My API sets ABSOLUTE rotation using `rotation` body.
+                // So I need to know current.
+
+                // Hack: Find in `this.manager.allVideos` (if type != photo) OR search in DOM?
+                // If type is photo, we might not have it in manager if switching views destroys data?
+                // Let's assume for now we can find it or default to 0.
+
+                let currentRot = 0;
+                let foundItem = null;
+
+                if (type === 'photo') {
+                    // Photos are not in manager.allVideos usually (manager handles main grid).
+                    // But maybe they are? loadPhotos calls UI.renderPhotoGrid directly.
+                    // We might need to store photos in manager or app.
+                    // For now, let's just use what we can find or 0.
+                    foundItem = window.app.currentPhotos?.find(p => p.id == id);
+                } else {
+                    foundItem = this.manager.allVideos.find(v => v.id == id);
+                }
+
+                if (foundItem) currentRot = foundItem.rotation || 0;
+
+                const newRot = (currentRot + degrees + 360) % 360;
+
+                // Optimistic Update
+                if (foundItem) foundItem.rotation = newRot;
+                const card = document.querySelector(`.video-card[data-id="${id}"] img`);
+                if (card) card.style.transform = `rotate(${newRot}deg)`;
+
+                // API Call
+                const endpoint = type === 'photo' ? `/api/v2/photos/${id}/rotate` : `/api/v2/videos/${id}/rotate`;
+                try {
+                    await API.post(endpoint, { rotation: newRot });
+                    this.showToast(`Đã xoay ${degrees}°`);
+                } catch (e) {
+                    this.showToast(`Lỗi xoay: ${e.message}`);
                 }
             }
         };
@@ -292,9 +377,7 @@ class DramApp {
                     case 'KeyF': if (document.fullscreenElement) document.exitFullscreen(); else v.requestFullscreen(); break;
                     case 'Escape': this.closePlayer(); break;
                 }
-            }
-            // 2. REMOTE CONTROL (Ánh xạ phím sang PC)
-            else if (remoteOpen) {
+            } else if (remoteOpen) {
                 switch (e.code) {
                     case 'Space': case 'Enter': e.preventDefault(); this.remoteControl('play_pause'); break;
                     case 'ArrowRight': this.remoteControl('seek_fwd'); break;
@@ -304,6 +387,29 @@ class DramApp {
                     case 'Escape': document.getElementById('remote-overlay').classList.add('hidden'); break;
                 }
             }
+
+            // GLOBAL HOTKEYS (Quick Paste)
+            if (e.code === 'KeyV' || e.code === 'Insert') {
+                // Check if modifier used (Ctrl+V handled by paste event, but plain V might be desired?)
+                // User said "1 phím: dán link". Let's support 'V' if not video control.
+                if (!webPlayerOpen && !e.ctrlKey && !e.metaKey && !e.target.tagName.match(/INPUT|TEXTAREA/)) {
+                    this.pasteLinkFromClipboard();
+                    this.showAddLinkModal();
+                }
+            }
+        });
+
+        // Global Paste Handler
+        document.addEventListener('paste', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            if (text && (text.startsWith('http') || text.startsWith('magnet'))) {
+                e.preventDefault();
+                this.showAddLinkModal();
+                // Override the value since modal might just have opened empty
+                const input = document.getElementById('add-link-input');
+                if (input) input.value = text;
+            }
         });
     }
 
@@ -311,6 +417,10 @@ class DramApp {
     async playOnRemote(video) {
         if (this.socket && this.socket.connected) this.socket.emit('mpv_play', video.id);
         else await API.playOnMpv(video.id);
+
+        // Focus MPV window
+        setTimeout(() => this.remoteControl('focus'), 500);
+
         this.openRemote();
     }
 
@@ -358,6 +468,7 @@ class DramApp {
 
         API.playOnMpv(id).then(() => {
             this.showToast('Đã gửi lên PC!');
+            setTimeout(() => this.remoteControl('focus'), 500);
             API.getRemoteStatus().then(s => this.updateRemoteUI(s));
         }).catch(e => {
             this.showToast('Lỗi: ' + e.message);
@@ -370,9 +481,40 @@ class DramApp {
         this.floatingRemote?.showAfterFullRemote();
     }
 
-    remoteControl(action, value = null) { API.remoteControl(action, value); }
+    async saveRemoteQueue() {
+        if (!this.lastRemoteStatus || !this.lastRemoteStatus.queue || this.lastRemoteStatus.queue.length === 0) {
+            this.showToast('Hàng đợi trống!');
+            return;
+        }
+
+        this.showToast('Đang xử lý...');
+        const queue = this.lastRemoteStatus.queue;
+        const realIds = [];
+
+        for (const item of queue) {
+            if (item.id && String(item.id).startsWith('url_')) {
+                // Must import URL to get real ID
+                try {
+                    const res = await API.importUrl(item.path || item.filename);
+                    if (res && res.id) realIds.push(res.id);
+                } catch (e) { console.error('Import failed', e); }
+            } else {
+                realIds.push(item.id);
+            }
+        }
+
+        if (realIds.length === 0) {
+            this.showToast('Không có video hợp lệ để lưu');
+            return;
+        }
+
+        this.playlistManager.open(realIds);
+    }
+
+
 
     updateRemoteUI(status) {
+        this.lastRemoteStatus = status;
         const title = document.getElementById('remote-title');
         const list = document.getElementById('queue-list');
         const count = document.getElementById('queue-count');
@@ -438,6 +580,16 @@ class DramApp {
             this.socket.on('mpv_status', (s) => this.updateRemoteUI(s));
         } catch (e) { }
     }
+    async remoteControl(action, value = null) {
+        try {
+            await API.remoteControl(action, value);
+            // Visual feedback handled by socket status
+        } catch (e) {
+            console.error('Remote command failed:', e);
+            this.showToast('Lỗi gửi lệnh Remote!');
+        }
+    }
+
     setupGlobalEvents() {
         const scanAction = async () => {
             // if (confirm('Quét lại?')) await API.startScan(); 
@@ -500,8 +652,67 @@ class DramApp {
     async loadPhotos() {
         try {
             const data = await API.fetchPhotos();
+            this.currentPhotos = data.photos; // Store for rotation access
             UI.renderPhotoGrid(data.photos, 'photo-grid');
         } catch (e) { console.error(e); }
+    }
+
+    // --- ADD LINK FEATURE ---
+    showAddLinkModal() {
+        document.getElementById('add-link-overlay').classList.remove('hidden');
+        document.getElementById('add-link-input').focus();
+        // Try auto-paste if allowed
+        this.pasteLinkFromClipboard(true);
+    }
+
+    closeAddLinkModal() {
+        document.getElementById('add-link-overlay').classList.add('hidden');
+    }
+
+    async pasteLinkFromClipboard(silent = false) {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text && (text.startsWith('http') || text.startsWith('magnet'))) {
+                document.getElementById('add-link-input').value = text;
+                if (!silent) this.showToast('Đã dán link!');
+            } else if (!silent) {
+                this.showToast('Clipboard không chứa link hợp lệ');
+            }
+        } catch (e) {
+            if (!silent) {
+                console.error(e);
+                this.showToast('Không thể truy cập Clipboard. Hãy dán thủ công.');
+            }
+        }
+    }
+
+    async handleAddLink(mode) {
+        const input = document.getElementById('add-link-input');
+        const url = input.value.trim();
+        if (!url) {
+            this.showToast('Vui lòng nhập link!');
+            return;
+        }
+
+        this.closeAddLinkModal();
+
+        if (mode === 'play') {
+            this.showToast('Đang gửi link sang MPV...');
+            try {
+                await API.playOnMpv(url);
+                setTimeout(() => this.remoteControl('focus'), 500);
+                this.openRemote();
+            } catch (e) { this.showToast('Lỗi: ' + e.message); }
+        } else {
+            this.showToast('Đang thêm vào queue...');
+            try {
+                await API.addToQueue(url);
+                this.showToast('Đã thêm vào Queue!');
+                this.openRemote();
+            } catch (e) { this.showToast('Lỗi: ' + e.message); }
+        }
+
+        input.value = ''; // Clean up
     }
 }
 

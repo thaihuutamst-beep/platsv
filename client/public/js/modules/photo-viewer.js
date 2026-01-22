@@ -36,6 +36,48 @@ export class PhotoViewer {
         };
 
         this.initEvents();
+        this.createTapZones();
+    }
+
+    createTapZones() {
+        // Create Left/Center/Right zones
+        const left = document.createElement('div');
+        left.className = 'viewer-tap-zone tap-zone-left';
+        left.onclick = (e) => { e.stopPropagation(); this.prev(); };
+
+        const right = document.createElement('div');
+        right.className = 'viewer-tap-zone tap-zone-right';
+        right.onclick = (e) => { e.stopPropagation(); this.next(); };
+
+        const center = document.createElement('div');
+        center.className = 'viewer-tap-zone tap-zone-center';
+        center.onclick = (e) => {
+            e.stopPropagation();
+            // Toggle controls visibility
+            this.infoBar.classList.toggle('hidden');
+            this.controls.classList.toggle('hidden');
+        };
+        // Double click on center to zoom/reset (pass through to image or handle specially)
+        // Since center zone covers image, we need to handle dblclick here too or let it propagate?
+        // If we stopPropagation on click, dblclick might not fire on img if it's below.
+        // Let's forward dblclick or handle it.
+        center.ondblclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Same logic as img dblclick
+            if (this.state.scale > 1.1) this.resetTransform();
+            else { this.state.scale = 2.5; this.updateTransform(); }
+        };
+
+        const wrapper = this.container.querySelector('.viewer-content');
+        if (wrapper) {
+            // Prepend so they are behind controls but above background? 
+            // Actually z-index 9999 handles layering.
+            wrapper.style.position = 'relative'; // Ensure absolute children position correctly
+            wrapper.appendChild(left);
+            wrapper.appendChild(center);
+            wrapper.appendChild(right);
+        }
     }
 
     initEvents() {
@@ -58,6 +100,18 @@ export class PhotoViewer {
 
         // Drag Pan logic
         this.img.onmousedown = (e) => this.startDrag(e);
+        this.img.ondblclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this.state.scale > 1.1) {
+                this.resetTransform(); // Back to fit
+            } else {
+                // Zoom to point
+                this.state.scale = 2.5;
+                // Center zoom roughly or just zoom in (refinement: zoom to mouse pos is hard without calc, simplifying to center for now or use zoom(1.5))
+                this.updateTransform();
+            }
+        };
         document.addEventListener('mousemove', (e) => this.drag(e));
         document.addEventListener('mouseup', () => this.endDrag());
 

@@ -33,22 +33,34 @@ export async function fetchNetworkInfo() {
 }
 
 // --- MPV REMOTE ---
-export async function playOnMpv(id) {
+export async function playOnMpv(idOrUrl, options = {}) {
+    const body = { options };
+    if (typeof idOrUrl === 'string' && (idOrUrl.startsWith('http') || idOrUrl.startsWith('magnet'))) {
+        body.url = idOrUrl;
+    } else {
+        body.id = idOrUrl;
+    }
     return await fetch('/api/v2/mpv/play', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
+        body: JSON.stringify(body)
     });
 }
-export async function addToQueue(id) {
+export async function addToQueue(idOrUrl) {
+    const body = {};
+    if (typeof idOrUrl === 'string' && (idOrUrl.startsWith('http') || idOrUrl.startsWith('magnet'))) {
+        body.url = idOrUrl;
+    } else {
+        body.id = idOrUrl;
+    }
     return await fetch('/api/v2/mpv/queue', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
+        body: JSON.stringify(body)
     });
 }
-export async function remoteControl(action, value = null) {
+export async function remoteControl(action, value = null, options = {}) {
     return await fetch('/api/v2/mpv/command', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, value })
+        body: JSON.stringify({ action, value, options })
     });
 }
 export async function getRemoteStatus() {
@@ -104,4 +116,27 @@ export async function fetchAllMedia() {
         const dateB = new Date(b.modified_at || b.created_at || 0);
         return dateB - dateA;
     });
+}
+
+// --- PLAYLISTS ---
+export async function getPlaylists() {
+    return await fetch(`${API_BASE}/playlists`).then(r => r.json());
+}
+export async function createPlaylist(name) {
+    return await fetch(`${API_BASE}/playlists`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    }).then(r => r.json());
+}
+export async function deletePlaylist(id) {
+    return await fetch(`${API_BASE}/playlists/${id}`, { method: 'DELETE' }).then(r => r.json());
+}
+export async function addToPlaylist(id, videoIds) {
+    return await fetch(`${API_BASE}/playlists/${id}/items`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoIds })
+    }).then(r => r.json());
+}
+export async function getPlaylistDetails(id) {
+    return await fetch(`${API_BASE}/playlists/${id}`).then(r => r.json());
 }

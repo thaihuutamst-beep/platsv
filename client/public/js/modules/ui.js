@@ -71,47 +71,67 @@ function createCard(video, index, selectionSet, actions, allVideos) {
     // Add favorite badge
     const favBadge = video.is_favorite ? '<span class="badge favorite" style="color:#ef4444"><i class="fa-solid fa-heart"></i></span>' : '';
 
+    // Duration (Video only)
+    const durationHTML = (video.mediaType !== 'photo' && video.duration > 0)
+        ? `<span class="card-duration">${formatDuration(video.duration)}</span>`
+        : '';
+
     card.innerHTML = `
         <div class="card-thumb ${isPortrait ? 'portrait' : 'landscape'}">
-            <img src="${thumb}" onerror="this.src='${PLACEHOLDER_IMG}'" loading="lazy" alt="${video.filename}">
+            <img src="${thumb}" style="transform: rotate(${video.rotation || 0}deg)" onerror="this.src='${PLACEHOLDER_IMG}'" loading="lazy" alt="${video.filename}">
             
-            <!-- Badges -->
-            <div class="card-badges">
-                ${typeBadge}
-                ${resBadge ? `<span class="badge res">${resBadge}</span>` : ''}
-                ${codecInfo ? `<span class="badge codec">${codecInfo}</span>` : ''}
-                ${favBadge}
+            <!-- Top Right: Favorite -->
+            <button class="btn-card-fav ${video.is_favorite ? 'active' : ''}" title="${video.is_favorite ? 'Bỏ thích' : 'Yêu thích'}">
+                <i class="${video.is_favorite ? 'fa-solid fa-heart' : 'fa-regular fa-heart'}"></i>
+            </button>
+
+            <!-- Top Left: Badges (Cloud, Resolution) -->
+            <div class="card-badges-top-left">
                 ${video.is_cloud ? '<span class="badge cloud"><i class="fa-solid fa-cloud"></i></span>' : ''}
+                ${resBadge ? `<span class="badge res">${resBadge}</span>` : ''}
             </div>
-            
-            <!-- Duration -->
-            ${duration ? `<span class="card-duration">${duration}</span>` : ''}
+
+            <!-- Bottom Gradient Overlay with Title -->
+            <div class="card-overlay-bottom">
+                 <div class="card-title-overlay" title="${video.filename}">${video.filename}</div>
+                 <div class="card-meta-overlay">
+                    ${size} ${codecInfo ? ' • ' + codecInfo : ''}
+                 </div>
+            </div>
+
+            <!-- Bottom Right: Duration -->
+            ${durationHTML}
             
             <!-- Progress bar -->
             ${video.progress > 0 ? `<div class="card-progress" style="width:${video.progress}%"></div>` : ''}
             
-            <!-- Play button -->
-            <button class="btn-card-play" title="Phát">
+            <!-- Center Play Button (Hidden by default, shown on hover) -->
+            <button class="btn-card-play" title="Phát Web">
                 <i class="fa-solid fa-play"></i>
             </button>
             
             <!-- Selection overlay -->
             <div class="select-layer"><i class="fa-solid fa-circle-check"></i></div>
+
+             <!-- Menu Button (Now inside thumb, top right below fav or floating) -->
+             <button class="btn-card-menu" title="Menu">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+             </button>
         </div>
-        
-        <div class="card-info">
-            <div class="card-title" title="${video.filename}">${video.filename}</div>
-            <div class="card-meta">
-                <span class="meta-size">${size}</span>
-                ${video.width && video.height ? `<span class="meta-dim">${video.width}×${video.height}</span>` : ''}
-                ${video.rotation ? `<span class="meta-rot"><i class="fa-solid fa-rotate"></i>${video.rotation}°</span>` : ''}
-            </div>
-        </div>
-        
-        <button class="btn-card-menu" title="Menu">
-            <i class="fa-solid fa-ellipsis-vertical"></i>
-        </button>
     `;
+
+    // Heart Button Event
+    const btnFav = card.querySelector('.btn-card-fav');
+    btnFav.onclick = (e) => {
+        e.stopPropagation();
+        actions.onToggleFavorite?.(video.id);
+        // Optimistic Update
+        const isFav = !video.is_favorite;
+        video.is_favorite = isFav;
+        btnFav.classList.toggle('active', isFav);
+        const icon = btnFav.querySelector('i');
+        icon.className = isFav ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
+    };
 
     // Play button - opens play menu
     const btnPlay = card.querySelector('.btn-card-play');
@@ -165,7 +185,87 @@ function createCard(video, index, selectionSet, actions, allVideos) {
         }
     };
 
+    // HOVER PREVIEW (GENERIC)
+    setupHoverPreview(card, video);
+
     return card;
+}
+
+function setupHoverPreview(card, item) {
+    let timeout;
+    let popup;
+
+    card.addEventListener('mouseenter', (e) => {
+        timeout = setTimeout(() => {
+            // Create Popup
+            popup = document.createElement('div');
+            popup.className = 'hover-preview-popup';
+
+            // Content
+            if (item.mediaType === 'photo' || !item.preview_path) {
+                // Show larger image
+                const src = item.path ? `/api/photos/${item.id}/view` : item.thumbnail_path; // Photo view or just thumb if video has no preview
+                // For video without preview, maybe just show thumb bigger?
+                // Let's use thumbnail for safety if view not avail
+                const realSrc = item.mediaType === 'photo' ? `/api/photos/${item.id}/view` : (item.thumbnail_path ? '/' + item.thumbnail_path : PLACEHOLDER_IMG);
+
+                popup.innerHTML = `<img src="${realSrc}" style="width:100%; height:100%; object-fit:contain; border-radius:8px; transform: rotate(${item.rotation || 0}deg)">`;
+            } else {
+                // Show Video Preview
+                const src = item.preview_path.startsWith('thumbnails/') ? '/' + item.preview_path : item.preview_path;
+                popup.innerHTML = `<video src="${src}" autoplay muted loop style="width:100%; height:100%; object-fit:cover; border-radius:8px; transform: rotate(${item.rotation || 0}deg)"></video>`;
+            }
+
+            document.body.appendChild(popup);
+            positionPreview(popup, card);
+        }, 600);
+    });
+
+    card.addEventListener('mouseleave', () => {
+        clearTimeout(timeout);
+        if (popup) popup.remove();
+    });
+}
+
+function positionPreview(popup, card) {
+    const rect = card.getBoundingClientRect();
+    const isRight = rect.left > window.innerWidth / 2;
+
+    // Position: If on right half, show to left. Else right.
+    // Overlap slightly or offset?
+    // User wants "start focused content" -> larger popup.
+    // Let's center it on screen or position relative to card.
+    // Relative is better context.
+
+    // Style handled in CSS: .hover-preview-popup
+    popup.style.position = 'fixed';
+    popup.style.width = '320px'; // Larger than thumb
+    popup.style.height = '180px';
+    popup.style.zIndex = '1000';
+    popup.style.background = '#000';
+    popup.style.borderRadius = '10px';
+    popup.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+    popup.style.border = '1px solid rgba(255,255,255,0.1)';
+    popup.style.padding = '5px';
+
+    // Improve size for portrait
+    if (card.querySelector('.portrait')) {
+        popup.style.height = '320px';
+        popup.style.width = '240px';
+    }
+
+    let top = rect.top + (rect.height / 2) - (parseInt(popup.style.height) / 2);
+    // Boundary check
+    if (top < 10) top = 10;
+    if (top + parseInt(popup.style.height) > window.innerHeight) top = window.innerHeight - parseInt(popup.style.height) - 10;
+
+    popup.style.top = `${top}px`;
+
+    if (isRight) {
+        popup.style.left = `${rect.left - parseInt(popup.style.width) - 20}px`;
+    } else {
+        popup.style.left = `${rect.right + 20}px`;
+    }
 }
 
 function showCardMenu(e, video, actions) {
@@ -185,6 +285,9 @@ function showCardMenu(e, video, actions) {
     menu.innerHTML = `
         <div class="menu-meta">${metaLines.join(' • ')}</div>
         <hr>
+        <button data-action="rotate-left"><i class="fa-solid fa-rotate-left"></i> Xoay Trái</button>
+        <button data-action="rotate-right"><i class="fa-solid fa-rotate-right"></i> Xoay Phải</button>
+        <hr>
         <button data-action="info"><i class="fa-solid fa-info-circle"></i> Chi tiết đầy đủ</button>
         <button data-action="edit-meta"><i class="fa-solid fa-pen-to-square"></i> Sửa Tags & Note</button>
         <button data-action="select"><i class="fa-solid fa-check"></i> Chọn/Bỏ chọn</button>
@@ -203,7 +306,13 @@ function showCardMenu(e, video, actions) {
             switch (action) {
                 // ... cases ...
                 case 'edit-meta':
-                    showMetadataModal(video, actions); // New modal function
+                    showMetadataModal(video, actions);
+                    break;
+                case 'rotate-left':
+                    actions.onRotate?.(video.id, video.mediaType || 'video', -90);
+                    break;
+                case 'rotate-right':
+                    actions.onRotate?.(video.id, video.mediaType || 'video', 90);
                     break;
                 case 'favorite':
                     actions.onToggleFavorite?.(video.id);
@@ -424,16 +533,27 @@ export function renderPhotoGrid(photos, containerId) {
 
         card.innerHTML = `
             <div class="card-thumb ${isPortrait ? 'portrait' : 'landscape'}">
-                <img src="${thumb}" loading="lazy" alt="${photo.filename}">
+                <img src="${thumb}" style="transform: rotate(${photo.rotation || 0}deg)" loading="lazy" alt="${photo.filename}">
                 
-                <div class="card-badges">
+                <div class="card-badges-top-left">
                     ${photo.is_cloud ? '<span class="badge cloud"><i class="fa-solid fa-cloud"></i></span>' : ''}
                     ${photo.width && photo.height ? `<span class="badge res">${photo.width}x${photo.height}</span>` : ''}
+                </div>
+
+                <!-- Bottom Gradient Overlay with Title -->
+                <div class="card-overlay-bottom">
+                     <div class="card-title-overlay" title="${photo.filename}">${photo.filename}</div>
+                     <div class="card-meta-overlay">
+                        ${(photo.size / 1024 / 1024).toFixed(1)} MB
+                     </div>
                 </div>
                 
                 <div class="select-layer"><i class="fa-solid fa-eye"></i></div>
             </div>
         `;
+
+        photo.mediaType = 'photo'; // Validate type
+        setupHoverPreview(card, photo);
 
         // Click to view
         card.onclick = () => {

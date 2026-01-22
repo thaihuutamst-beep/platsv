@@ -78,31 +78,49 @@ async function processMedia(filePath, fileName, type) {
     // Tên thumb safe
     const safeName = fileName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     const thumbName = `thumb_${type}_${safeName}.jpg`;
+    const previewName = `preview_${safeName}.mp4`;
     const thumbPathFull = path.join(THUMB_DIR, thumbName);
+    const previewPathFull = path.join(THUMB_DIR, previewName); // For now, keep previews in thumb dir or new dir
     const thumbRelPath = `thumbnails/${thumbName}`;
+    const previewRelPath = `thumbnails/${previewName}`;
 
-    let metadata = { duration: 0, width: 0, height: 0, date_taken: null };
+    // 1. Get Metadata FIRST (to know duration)
+    try {
+        metadata = await getMetadata(filePath, type, METADATA_TIMEOUT);
+    } catch (e) { console.error(`Metadata Error: ${filePath}`, e); }
 
-    // 1. Check tồn tại thumb
+    // 2. Check & Generate Thumbnail
     if (fs.existsSync(thumbPathFull)) {
         stats.thumbsSkipped++;
     } else {
-        // Tạo thumb nếu chưa có
         stats.thumbsGenerated++;
 
-        const success = await generateThumbnail(filePath, thumbPathFull, type, THUMB_TIMEOUT);
+        // Smart Seek: 20% of duration, or 5s, max 30s
+        let seekTime = '00:00:05';
+        if (metadata.duration) {
+            if (metadata.duration < 5) seekTime = '00:00:00';
+            else if (metadata.duration < 30) seekTime = new Date(metadata.duration * 0.2 * 1000).toISOString().substr(11, 8);
+            // else default 5s
+        }
+
+        const success = await generateThumbnail(filePath, thumbPathFull, type, THUMB_TIMEOUT, seekTime);
         if (!success) {
-            // Nếu tạo thất bại, dùng placeholder hoặc null
-            // For photos, we might want the original if small enough, but for now just skip thumb
+            // Retry at 0s if failed
+            await generateThumbnail(filePath, thumbPathFull, type, THUMB_TIMEOUT, '00:00:00');
         }
     }
 
-    // 2. Lấy Metadata (cho cả Video và Photo để lấy dimensions)
-    try {
-        metadata = await getMetadata(filePath, type, METADATA_TIMEOUT);
-    } catch (e) { }
+    // 1b. Check Preview (Video Only)
+    let hasPreview = false;
+    if (type === 'video') {
+        if (fs.existsSync(previewPathFull)) {
+            hasPreview = true;
+        } else {
+            hasPreview = await generatePreview(filePath, previewPathFull, THUMB_TIMEOUT);
+        }
+    }
 
-    // 3. Lấy Size
+    // 3. Size
     let size = 0;
     try { size = fs.statSync(filePath).size; } catch (e) { }
 
@@ -116,10 +134,10 @@ async function processMedia(filePath, fileName, type) {
             duration: metadata.duration,
             width: metadata.width,
             height: metadata.height,
-            date_taken: metadata.date_taken, // Photo only
+            date_taken: metadata.date_taken,
             thumbnail_path: fs.existsSync(thumbPathFull) ? thumbRelPath : (type === 'photo' ? '' : ''),
+            preview_path: hasPreview ? previewRelPath : '',
             is_cloud: isCloud ? 1 : 0,
-            // Extended Metadata
             fps: metadata.fps,
             bitrate: metadata.bitrate,
             codec_video: metadata.codec_video,
@@ -132,22 +150,22 @@ async function processMedia(filePath, fileName, type) {
     });
 }
 
-async function generateThumbnail(input, output, type, timeout) {
+async function generateThumbnail(input, output, type, timeout, seek = '00:00:05') {
     return new Promise((resolve) => {
         const timer = setTimeout(() => resolve(false), timeout);
 
         const args = (type === 'video')
             ? [
                 '-i', input,
-                '-ss', '00:00:05', // Seek 5s
+                '-ss', seek,
                 '-vframes', '1',
-                '-s', '320x180',
+                '-s', '480x270', // Increased resolution slightly for quality
                 '-y',
                 output
             ]
             : [ // Photo resize
                 '-i', input,
-                '-vf', 'scale=400:-1', // Max width 400
+                '-vf', 'scale=400:-1',
                 '-q:v', '5',
                 '-y',
                 output
@@ -157,6 +175,38 @@ async function generateThumbnail(input, output, type, timeout) {
         if (type === 'photo') {
             // FFmpeg thường tự handle orientation
         }
+
+        const proc = spawn('ffmpeg', args, { stdio: 'ignore' });
+
+        proc.on('close', (code) => {
+            clearTimeout(timer);
+            resolve(code === 0);
+        });
+
+        proc.on('error', () => {
+            clearTimeout(timer);
+            resolve(false);
+        });
+    });
+}
+
+async function generatePreview(input, output, timeout) {
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(false), timeout);
+
+        const args = [
+            '-i', input,
+            '-ss', '00:00:10', // Seek 10s
+            '-t', '00:00:03',  // 3s duration
+            '-vf', 'scale=320:-1:flags=lanczos',
+            '-c:v', 'libx264',
+            '-crf', '28',
+            '-preset', 'veryfast',
+            '-an',
+            '-movflags', '+faststart',
+            '-y',
+            output
+        ];
 
         const proc = spawn('ffmpeg', args, { stdio: 'ignore' });
 
