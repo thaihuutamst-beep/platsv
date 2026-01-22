@@ -46,6 +46,7 @@ async function startServer() {
     app.use('/api/photos', require('./routes/photos.routes'));
     app.use('/api/playlists', require('./routes/playlist.routes'));
     app.use('/api/v2/system', require('./routes/system.routes'));
+    app.use('/api/v2/ytdlp', require('./routes/ytdlp.routes'));
 
     // 4. Network Info
     app.get('/api/network-info', (req, res) => {

@@ -138,8 +138,12 @@ class MpvService {
         const mpvPath = this.getMpvPath();
         console.log(`🎬 Starting MPV: ${this.current.filename}`);
 
+        // Get yt-dlp cookies args if configured
+        const ytdlpService = require('./ytdlp.service');
+        const cookiesArgs = ytdlpService.getMpvCookiesArgs();
+
         try {
-            this.mpvProcess = spawn(mpvPath, [
+            const mpvArgs = [
                 videoPath,
                 '--fullscreen',
                 '--volume=' + this.volume,
@@ -153,7 +157,10 @@ class MpvService {
                 '--audio-pitch-correction=yes',
                 '--input-ipc-server=' + IPC_PIPE, // Enable IPC
                 '--sub-auto=fuzzy',
-            ], {
+                ...cookiesArgs, // Add cookies args if configured
+            ];
+
+            this.mpvProcess = spawn(mpvPath, mpvArgs, {
                 stdio: ['ignore', 'ignore', 'ignore'],
                 detached: false
             });

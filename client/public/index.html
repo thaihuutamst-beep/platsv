@@ -437,6 +437,23 @@
                                 <input type="checkbox" id="setting-no-gradient" checked
                                     onchange="app.player.updateSetting('noGradient', this.checked)">
                             </div>
+                            <div class="ui-setting-row">
+                                <div class="ui-setting-info">
+                                    <h4>🍪 Cookies Browser (YT-DLP)</h4>
+                                    <p>Dùng cookies từ trình duyệt để xem nội dung đăng nhập</p>
+                                </div>
+                                <select id="setting-ytdlp-cookies" class="styled-select"
+                                    onchange="app.setCookiesBrowser(this.value)">
+                                    <option value="none">Không dùng</option>
+                                    <option value="chrome">Chrome</option>
+                                    <option value="edge">Edge</option>
+                                    <option value="firefox">Firefox</option>
+                                    <option value="brave">Brave</option>
+                                    <option value="opera">Opera</option>
+                                    <option value="chromium">Chromium</option>
+                                    <option value="vivaldi">Vivaldi</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 

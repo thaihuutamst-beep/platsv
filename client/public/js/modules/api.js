@@ -140,3 +140,29 @@ export async function addToPlaylist(id, videoIds) {
 export async function getPlaylistDetails(id) {
     return await fetch(`${API_BASE}/playlists/${id}`).then(r => r.json());
 }
+
+// --- YT-DLP ---
+export async function getCookiesBrowser() {
+    return await fetch('/api/v2/ytdlp/cookies-browser').then(r => r.json());
+}
+export async function setCookiesBrowser(browser) {
+    return await fetch('/api/v2/ytdlp/cookies-browser', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ browser })
+    }).then(r => r.json());
+}
+export async function resolveUrl(url) {
+    return await fetch('/api/v2/ytdlp/resolve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+    }).then(r => r.json());
+}
+export async function importUrlResolved(url, resolve = false) {
+    return await fetch('/api/v2/ytdlp/import', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, resolve })
+    }).then(r => r.json());
+}
+export async function reResolveUrl(id) {
+    return await fetch(`/api/v2/ytdlp/re-resolve/${id}`, { method: 'POST' }).then(r => r.json());
+}

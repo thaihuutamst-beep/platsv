@@ -37,6 +37,7 @@ class DramApp {
         try {
             await this.reloadData();
             await this.loadNetwork();
+            await this.loadCookiesSetting();
         } catch (e) {
             console.error('Init error:', e);
         }
@@ -713,6 +714,32 @@ class DramApp {
         }
 
         input.value = ''; // Clean up
+    }
+
+    // --- YT-DLP Cookies Settings ---
+    async loadCookiesSetting() {
+        try {
+            const result = await API.getCookiesBrowser();
+            const select = document.getElementById('setting-ytdlp-cookies');
+            if (select && result.browser) {
+                select.value = result.browser;
+            }
+        } catch (e) {
+            console.log('Could not load cookies setting:', e.message);
+        }
+    }
+
+    async setCookiesBrowser(browser) {
+        try {
+            const result = await API.setCookiesBrowser(browser);
+            if (result.success) {
+                this.showToast(`Đã đặt cookies browser: ${browser}`);
+            } else {
+                this.showToast('Lỗi: ' + (result.error || 'Unknown'));
+            }
+        } catch (e) {
+            this.showToast('Lỗi: ' + e.message);
+        }
     }
 }
 
