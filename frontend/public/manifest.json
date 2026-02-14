@@ -1,0 +1,17 @@
+{
+    "name": "DRAM Media Drive",
+    "short_name": "MediaDrive",
+    "description": "Premium Optimized Media Server for Surface Pro 8",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0a0a0a",
+    "theme_color": "#0078d4",
+    "icons": [
+        {
+            "src": "/pwa_icon_512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

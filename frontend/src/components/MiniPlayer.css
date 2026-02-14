@@ -1,0 +1,248 @@
+/* MiniPlayer - Floating MPV Controls */
+.mini-player {
+  position: fixed;
+  bottom: 20px;
+  left: 280px;
+  /* Offset for sidebar width */
+  right: 20px;
+  background: rgba(30, 30, 40, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  color: var(--text-primary);
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+}
+
+/* Collapsed state */
+.mini-player.collapsed {
+  left: auto;
+  right: 20px;
+  width: 280px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.mini-player.collapsed:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.mp-collapsed-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.mp-collapsed-title {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.mp-play-pause-mini {
+  background: var(--accent-color);
+  border: none;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mp-expand-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Header actions (collapse/close) */
+.mp-header-actions {
+  position: absolute;
+  top: -12px;
+  right: 12px;
+  display: flex;
+  gap: 4px;
+}
+
+.mp-collapse-btn,
+.mp-close-btn {
+  background: rgba(60, 60, 70, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mp-collapse-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-color);
+}
+
+.mp-close-btn:hover {
+  background: rgba(255, 100, 100, 0.3);
+  color: #ff6b6b;
+}
+
+/* Info section */
+.mp-info {
+  width: 260px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.mp-title {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-primary);
+}
+
+.mp-path {
+  font-size: 11px;
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  color: var(--text-muted);
+}
+
+/* Controls */
+.mp-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mp-controls button {
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  transition: all 0.2s;
+}
+
+.mp-controls button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--accent-color);
+}
+
+.mp-controls button.mp-play-pause {
+  background: var(--accent-color);
+  color: white;
+  padding: 12px;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+}
+
+.mp-controls button.mp-play-pause:hover {
+  background: var(--accent-hover);
+  transform: scale(1.05);
+}
+
+/* Options */
+.mp-options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 140px;
+  justify-content: flex-end;
+}
+
+.mp-options button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: all 0.2s;
+  color: var(--text-muted);
+}
+
+.mp-options button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.mp-options button.active {
+  background: var(--accent-color);
+  color: white;
+}
+
+.mp-volume {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.mp-volume:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Mobile responsive */
+@media (max-width: 1024px) {
+  .mini-player {
+    left: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .mini-player {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .mp-info {
+    width: 100%;
+    order: 1;
+  }
+
+  .mp-controls {
+    order: 2;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .mp-options {
+    order: 3;
+    width: auto;
+  }
+
+  .mp-header-actions {
+    top: 8px;
+    right: 8px;
+  }
+}

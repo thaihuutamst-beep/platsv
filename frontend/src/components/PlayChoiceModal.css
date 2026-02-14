@@ -1,0 +1,137 @@
+.play-choice-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 9000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.play-choice-modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    padding: 32px;
+    max-width: 420px;
+    width: 90%;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.play-choice-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.play-choice-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.play-choice-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.play-choice-filename {
+    margin: 0 0 24px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.play-choice-options {
+    display: flex;
+    gap: 16px;
+}
+
+.play-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 24px 16px;
+    background: var(--bg-tertiary);
+    border: 2px solid var(--border-color);
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text-primary);
+}
+
+.play-option:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.play-option.mpv:hover {
+    border-color: #f97316;
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.play-option.web:hover {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.1);
+}
+
+.play-option.mpv:hover svg {
+    color: #f97316;
+}
+
+.play-option.web:hover svg {
+    color: #6366f1;
+}
+
+.option-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.option-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.play-choice-remember {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.play-choice-remember label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.play-choice-remember input {
+    accent-color: var(--accent-color);
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .play-choice-options {
+        flex-direction: column;
+    }
+}

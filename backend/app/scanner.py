@@ -1,0 +1,47 @@
+import os
+from pathlib import Path
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from .config import MEDIA_ROOT
+from .models import MediaFile
+
+VIDEO_EXT = {".mp4", ".mkv", ".avi", ".mov", ".webm", ".ts", ".m2ts", ".flv"}
+IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+AUDIO_EXT = {".mp3", ".flac", ".aac", ".wav", ".m4a"}
+
+def is_media_file(path: Path) -> bool:
+    ext = path.suffix.lower()
+    return ext in VIDEO_EXT or ext in IMAGE_EXT or ext in AUDIO_EXT
+
+async def scan_media(session: AsyncSession):
+    existing = await session.execute(select(MediaFile.path))
+    existing_paths = {row[0] for row in existing.fetchall()}
+
+    new_items = []
+
+    for root, dirs, files in os.walk(MEDIA_ROOT):
+        for name in files:
+            full_path = Path(root) / name
+            if not is_media_file(full_path):
+                continue
+
+            try:
+                rel_path = str(full_path.relative_to(MEDIA_ROOT))
+            except ValueError:
+                continue
+
+            if rel_path in existing_paths:
+                continue
+
+            stat = full_path.stat()
+            print("Found media:", rel_path)   # debug log
+            mf = MediaFile(
+                path=rel_path,
+                name=name,
+                size=stat.st_size,
+            )
+            session.add(mf)
+            new_items.append(mf)
+
+    await session.commit()
+    return len(new_items)

@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+backend/venv/
+
+# Build output
+frontend/dist/
+frontend/build/
+
+# Database (local data)
+backend/media.db
+backend/media.db-shm
+backend/media.db-wal
+
+# Thumbnails (generated)
+backend/thumbnails/
+
+# Temp / Downloads
+backend/temp/
+backend/data/
+
+# Logs
+logs/
+*.log
+backend/*.pid
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Environment
+.env
+.env.local
